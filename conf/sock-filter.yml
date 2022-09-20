@@ -1,0 +1,10 @@
+endpoints:
+    - imdsv2: 
+        cidr: [169.254.169.254/32]
+        allow:
+          - testuser:
+              - route_1:
+                  path: 
+                      - "/latest/api/token"
+                  header:
+                      - "X-aws-ec2-metadata-token"

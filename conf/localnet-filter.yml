@@ -1,0 +1,6 @@
+endpoints:
+    - imdsv2:
+        iface: [wlp4s0] 
+        range: [169.254.169.254/32]
+        allow:
+          - testuser

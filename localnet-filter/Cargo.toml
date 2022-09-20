@@ -1,0 +1,22 @@
+[package]
+name = "localnet-filter"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+aya = { version = ">=0.11", features=["async_tokio"] }
+aya-log = "0.1"
+localnet-filter-common = { path = "../localnet-filter-common", features=["user"] }
+anyhow = "1.0.42"
+clap = { version = "3.1", features = ["derive"] }
+log = "0.4"
+serde = {version="1.0.142", features = ["derive"] }
+serde_yaml = {version = "0.8.26"}
+simplelog = "0.12"
+tokio = { version = "1.18", features = ["macros", "rt", "rt-multi-thread", "net", "signal"] }
+
+[[bin]]
+name = "localnet-filter"
+path = "src/main.rs"
