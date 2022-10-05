@@ -10,6 +10,7 @@ edition = "2021"
 aya-bpf = { git = "https://github.com/aya-rs/aya", branch = "main" }
 aya-log-ebpf = { git = "https://github.com/aya-rs/aya-log", branch = "main" }
 localnet-filter-common = { path = "../localnet-filter-common" }
+memoffset = "0.6"
 
 [[bin]]
 name = "localnet-filter"

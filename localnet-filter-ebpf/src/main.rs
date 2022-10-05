@@ -1,44 +1,84 @@
 #![no_std]
 #![no_main]
 
+use core::mem;
+
 use aya_bpf::{
-    bindings::xdp_action,
-    macros::{map, xdp},
-    maps::{HashMap},
-    programs::XdpContext,
+    bindings::{TC_ACT_PIPE, TC_ACT_SHOT},
+    macros::{classifier, map},
+    maps::{HashMap, PerfEventArray},
+    programs::TcContext,
 };
-use aya_log_ebpf::info;
+use memoffset::offset_of;
 
+use localnet_filter_common::PacketLog;
 
-#[map(name = "LOCALENDPOINTLIST")] // contains the local endpoints that we should monitor for connection attempts
-static mut LOCALENDPOINTLIST: HashMap<u32, u32> =
-    HashMap::<u32, u32>::with_max_entries(1024, 0);
+#[allow(non_upper_case_globals)]
+#[allow(non_snake_case)]
+#[allow(non_camel_case_types)]
+#[allow(dead_code)]
+mod bindings;
+use bindings::{ethhdr, iphdr};
 
-#[map(name = "UIDLIST")] // contains the uid we should monitor for
-static mut UIDLIST: HashMap<u32, u32> =
-        HashMap::<u32, u32>::with_max_entries(1024, 0);
+#[map(name = "EVENTS")]
+static mut EVENTS: PerfEventArray<PacketLog> =
+    PerfEventArray::with_max_entries(1024, 0);
 
-#[xdp(name="localnetfilter")] 
-pub fn localnet_filter(ctx: XdpContext) -> u32 {
-    
-    match unsafe { try_localnet_filter(ctx) } {
+#[map(name = "BLOCKLIST")] // (1)
+static mut BLOCKLIST: HashMap<u32, u32> = HashMap::with_max_entries(1024, 0);
+
+/*
+#[map(name = "ENDPOINTLIST")] // contains the local endpoints that we should monitor for connection attempts
+// key: userid
+// value: list of tuples (prefix, range)
+static mut ENDPOINTLIST: HashMap<u32, [u128;localnet_filter_common::MAX_ENDPOINT_ENTRIES_USER]> =
+    HashMap::<u32, [u128;localnet_filter_common::MAX_ENDPOINT_ENTRIES_USER]>::with_max_entries(1024, 0);
+*/
+
+#[classifier(name = "tc_egress")]
+pub fn tc_egress(ctx: TcContext) -> i32 {
+    match try_tc_egress(ctx) {
         Ok(ret) => ret,
-        Err(_) => xdp_action::XDP_ABORTED,
+        Err(_) => TC_ACT_SHOT,
     }
 }
 
-fn filter_ip(address: u32) -> bool {
-    unsafe { LOCALENDPOINTLIST.get(&address).is_some() }
+// (2)
+fn block_ip(address: u32) -> bool {
+    unsafe { BLOCKLIST.get(&address).is_some() }
 }
 
-unsafe fn try_localnet_filter(ctx: XdpContext) -> Result<u32, u32> {
-    info!(&ctx, "received a packet");
-    // check if uid matches
-        // if yes check if IP address is on list
-            // if yes forward to user space program
-    // if no - let it pass
-    Ok(xdp_action::XDP_PASS)
+fn try_tc_egress(ctx: TcContext) -> Result<i32, i64> {
+    let h_proto = u16::from_be(
+        ctx.load(offset_of!(ethhdr, h_proto))
+            .map_err(|_| TC_ACT_PIPE)?,
+    );
+    if h_proto != ETH_P_IP {
+        return Ok(TC_ACT_PIPE);
+    }
+    let destination =
+        u32::from_be(ctx.load(ETH_HDR_LEN + offset_of!(iphdr, daddr))?);
+
+    // (3)
+    let action = if block_ip(destination) {
+        TC_ACT_SHOT
+    } else {
+        TC_ACT_PIPE
+    };
+    let uid = ctx.get_socket_uid();
+    let log_entry = PacketLog {
+        ipv4_address: destination,
+        action: action,
+        uid: uid
+    };
+    unsafe {
+        EVENTS.output(&ctx, &log_entry, 0);
+    }
+    Ok(action)
 }
+
+const ETH_P_IP: u16 = 0x0800;
+const ETH_HDR_LEN: usize = mem::size_of::<ethhdr>();
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {

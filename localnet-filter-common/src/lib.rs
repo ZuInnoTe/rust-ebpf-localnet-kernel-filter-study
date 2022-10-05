@@ -1,7 +1,19 @@
 #![no_std]
 
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct PacketLog {
+    pub ipv4_address: u32,
+    pub action: i32,
+    pub uid: u32
+}
 
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for PacketLog {}
+
+
+pub const MAX_ENDPOINT_ENTRIES_USER: usize =10; // should be always a multiplicator of two as we need to configure a prefix and a range
 
 /// Minimal function to determine if an ip is contained in a given range (or CIDR). This works for IPv4 and IPv6. 
 /// We work here with primitive types only and do not provide conversion of an IP (range) string to u128 as this function must be also usable in a eBPF module

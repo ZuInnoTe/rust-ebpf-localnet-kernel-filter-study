@@ -1,19 +1,30 @@
-/// Adaption from: https://github.com/aya-rs/book/tree/main/examples/myapp-01
-use anyhow::Context;
-use aya::programs::{Xdp, XdpFlags};
-use aya::{include_bytes_aligned, Bpf};
-use aya_log::BpfLogger;
+//! Demonstration on how how to use a Linux eBPF module (XDP) for filtering network traffic based on the IP (IPv4, IPv6).
+//! This part is the main program that loads the configuration, the eBPF module and communicates the configuration to the eBPF moddule
+//! Adaption from: https://github.com/aya-rs/book/blob/main/examples/tc-egress/
+
+use std::net::{self, Ipv4Addr};
+
+use aya::{
+    include_bytes_aligned,
+    maps::{perf::AsyncPerfEventArray, HashMap},
+    programs::{tc, SchedClassifier, TcAttachType},
+    util::online_cpus,
+    Bpf,
+};
+use bytes::BytesMut;
 use clap::Parser;
 use log::info;
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
-use tokio::signal; // (1)
+use tokio::{signal, task};
 
+use localnet_filter_common::PacketLog;
 
-
+use localnet_filter_common;
 
 // own modules
 pub mod conf;
-pub mod net;
+pub mod network;
+pub mod user;
 
 #[derive(Debug, Parser)]
 struct Opt {
@@ -21,11 +32,11 @@ struct Opt {
     config_path: String, // (2)
 }
 
-#[tokio::main] // (3)
+#[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let opt = Opt::parse();
-    let config = conf::load_config(opt.config_path).unwrap();
 
+    let config = conf::load_config(opt.config_path).unwrap();
     TermLogger::init(
         LevelFilter::Debug,
         ConfigBuilder::new()
@@ -36,7 +47,11 @@ async fn main() -> Result<(), anyhow::Error> {
         ColorChoice::Auto,
     )?;
 
-    // load eBF program
+    // This will include your eBPF object file as raw bytes at compile-time and load it at
+    // runtime. This approach is recommended for most real-world use cases. If you would
+    // like to specify the eBPF program at runtime rather than at compile-time, you can
+    // reach for `Bpf::load_file` instead.
+    // load eBPF program
     #[cfg(debug_assertions)]
     let mut bpf = Bpf::load(include_bytes_aligned!(
         "../../localnet-filter-ebpf/target/bpfel-unknown-none/debug/localnet-filter"
@@ -45,30 +60,63 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut bpf = Bpf::load(include_bytes_aligned!(
         "../../localnet-filter-ebpf/target/bpfel-unknown-none/release/localnet-filter"
     ))?;
-    // init logger
-    BpfLogger::init(&mut bpf)?;
-    // load eBPF program in the kernel
-    let program: &mut Xdp = bpf.program_mut("localnetfilter").unwrap().try_into()?;
-    program.load()?;
-    // convert each ip/cidr to bit representation
-    // convert username to uid
-    // communicate user ids and ips and send to ebpf program
+
     // iterate through configuration and attach to endpoint
+    // add/update hashmap for userid for allowed cidr
     for endpoint in config.endpoints {
         for (endpoint_name, endpoint_config) in endpoint {
+            info!("Configuring endpoint: {}", endpoint_name);
+            // error adding clsact to the interface if it is already added is harmless
+            // the full cleanup can be done with 'sudo tc qdisc del dev eth0 clsact'.
+
             for iface in endpoint_config.iface {
                 info!("Attaching to interface {} ...", iface);
-                program.attach(iface.as_str(), XdpFlags::default())
-                .context("failed to attach the XDP program with default flags - try changing XdpFlags::default() to XdpFlags::SKB_MODE")?;
+                let _ = tc::qdisc_add_clsact(&iface);
+                let program: &mut SchedClassifier =
+                    bpf.program_mut("tc_egress").unwrap().try_into()?;
+                program.load()?;
+                program.attach(&iface, TcAttachType::Egress)?;
             }
         }
     }
+
+    // (1)
+    let mut blocklist: HashMap<_, u32, u32> = HashMap::try_from(bpf.map_mut("BLOCKLIST")?)?;
+
+    // (2)
+    let block_addr: u32 = Ipv4Addr::new(1, 1, 1, 1).try_into()?;
+
+    // (3)
+    blocklist.insert(block_addr, 0, 0)?;
+
+
+    // Get feedback from eBPF Module about decisions made
+    let mut perf_array = AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS")?)?;
+
+    for cpu_id in online_cpus()? {
+        let mut buf = perf_array.open(cpu_id, None)?;
+
+        task::spawn(async move {
+            let mut buffers = (0..10)
+                .map(|_| BytesMut::with_capacity(1024))
+                .collect::<Vec<_>>();
+
+            loop {
+                let events = buf.read_events(&mut buffers).await.unwrap();
+                for i in 0..events.read {
+                    let buf = &mut buffers[i];
+                    let ptr = buf.as_ptr() as *const PacketLog;
+                    let data = unsafe { ptr.read_unaligned() };
+                    let src_addr = std::net::Ipv4Addr::from(data.ipv4_address);
+                    println!("LOG: SRC {}, ACTION {}, UID {}", src_addr, data.action, data.uid);
+                }
+            }
+        });
+    }
+
     info!("Waiting for Ctrl-C...");
     signal::ctrl_c().await?;
     info!("Exiting...");
 
     Ok(())
 }
-
-
-
