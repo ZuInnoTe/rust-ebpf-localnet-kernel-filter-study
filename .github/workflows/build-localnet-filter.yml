@@ -27,6 +27,7 @@ jobs:
               curl https://sh.rustup.rs -sSf | sh -s -- -y
               rustup install $RUSTUP_TOOLCHAIN
               rustup install nightly
+              rustup component add rust-src --toolchain nightly
      - name: Configure Rust and display version
        run: |
            rustup default nightly
