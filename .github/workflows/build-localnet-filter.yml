@@ -26,7 +26,7 @@ jobs:
               mkdir -p $CARGO_HOME
               curl https://sh.rustup.rs -sSf | sh -s -- -y
               rustup install $RUSTUP_TOOLCHAIN
-              rustup default nightly --toolchain $RUSTUP_TOOLCHAIN             
+              rustup default nightly       
      - name: Configure Rust and display version
        run: |
            echo "PATH=$(dirname $(rustup which cargo)):$PATH" >> $GITHUB_ENV
