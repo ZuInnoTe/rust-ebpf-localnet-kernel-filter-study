@@ -1,6 +1,9 @@
 endpoints:
     - imdsv2:
-        iface: [wlp4s0] 
+        iface: [eth0] 
         range: [169.254.169.254/32]
         allow:
           - testuser
+
+
+    
