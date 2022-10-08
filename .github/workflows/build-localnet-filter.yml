@@ -1,8 +1,7 @@
 name: rust-localnet-filter
 on: [push]
 env:
-    RUSTUP_RUST_VERSION: "1.64"
-    RUSTUP_TOOLCHAIN: "nightly"
+    RUSTUP_TOOLCHAIN: "1.64"
     RUSTUP_HOME: "./rust/rustup"
     CARGO_HOME: "./rust/cargo"
 
@@ -26,7 +25,8 @@ jobs:
               mkdir -p $RUSTUP_HOME
               mkdir -p $CARGO_HOME
               curl https://sh.rustup.rs -sSf | sh -s -- -y
-              rustup install $RUSTUP_TOOLCHAIN    
+              rustup install $RUSTUP_TOOLCHAIN
+              rustup install nightly
      - name: Configure Rust and display version
        run: |
            echo "PATH=$(dirname $(rustup which cargo)):$PATH" >> $GITHUB_ENV
@@ -34,5 +34,8 @@ jobs:
            cargo --version           
      - name: Build localnet-filter-ebpf
        run: | 
+          rustup default nightly
+          rustup toolchain list
+          cargo --version
           cd localnet-filter-ebpf
-          cargo +nightly build --target bpfel-unknown-none -Z build-std=core --release
+          cargo build --target bpfel-unknown-none -Z build-std=core --release
