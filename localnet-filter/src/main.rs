@@ -17,6 +17,7 @@ use log::info;
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
 use tokio::{signal, task};
 
+use localnet_filter_common::Netfilter;
 use localnet_filter_common::PacketLog;
 
 use localnet_filter_common;
@@ -61,13 +62,14 @@ async fn main() -> Result<(), anyhow::Error> {
         "../../localnet-filter-ebpf/target/bpfel-unknown-none/release/localnet-filter"
     ))?;
 
+    let mut endpointlist: HashMap<_, u32, Netfilter> =
+        HashMap::try_from(bpf.map_mut("ENDPOINTLIST")?)?;
+
     // iterate through configuration and attach to endpoint
     // add/update hashmap for userid for allowed cidr
     for endpoint in config.endpoints {
         for (endpoint_name, endpoint_config) in endpoint {
             info!("Configuring endpoint: {}", endpoint_name);
-            // error adding clsact to the interface if it is already added is harmless
-            // the full cleanup can be done with 'sudo tc qdisc del dev eth0 clsact'.
 
             for iface in endpoint_config.iface {
                 info!("Attaching to interface {} ...", iface);
@@ -77,18 +79,65 @@ async fn main() -> Result<(), anyhow::Error> {
                 program.load()?;
                 program.attach(&iface, TcAttachType::Egress)?;
             }
+            // add user
+            for user in &endpoint_config.allow {
+                let uid = match user::get_uid_by_name(&user) {
+                    Ok(uid) => uid,
+                    Err(err) => {
+                        let error_msg = match err {
+                            user::UserInformationError::InvalidUserName => "Invalid user name",
+                            user::UserInformationError::NoUserInformationAvailable => {
+                                "Unknown user name"
+                            }
+                            _ => "Internal Error",
+                        };
+
+                        return Err(anyhow::anyhow!("{}", error_msg));
+                    }
+                };
+                info!("Adding rules for user {} with id {}", user, uid);
+                // add range
+                let mut netfilter = localnet_filter_common::Netfilter {
+                    filter: [(0, 0); localnet_filter_common::MAX_ENDPOINT_ENTRIES_USER],
+                };
+                let mut counter: usize = 0;
+                for range in &endpoint_config.range {
+                    if counter == localnet_filter_common::MAX_ENDPOINT_ENTRIES_USER {
+                        return Err(anyhow::anyhow!(
+                            "Too many ip ranges/user. Maximum {}",
+                            localnet_filter_common::MAX_ENDPOINT_ENTRIES_USER
+                        ));
+                    }
+                    let (cidr_prefix, cidr_range) = match network::split_cidr(range) {
+                        Ok(result) => result,
+                        Err(error_msg) => return Err(anyhow::anyhow!("{}", error_msg)),
+                    };
+                    info!("Adding prefix {} range {}", cidr_prefix, cidr_range);
+                    let cidr_prefix_num =
+                        match network::convert_ip_addr_str_to_unsigned_integer(&cidr_prefix) {
+                            Ok(num) => num,
+                            Err(error_msg) => return Err(anyhow::anyhow!("{}", error_msg)),
+                        };
+                    let cidr_range_num = match network::convert_range_str_to_bit_mask(&cidr_range) {
+                        Ok(num) => num,
+                        Err(error_msg) => return Err(anyhow::anyhow!("{}", error_msg)),
+                    };
+                    netfilter.filter[counter] = (cidr_prefix_num, cidr_range_num);
+                    counter += 1;
+                }
+                endpointlist.insert(uid, netfilter, 0)?;
+            }
         }
     }
 
-    // (1)
-    let mut blocklist: HashMap<_, u32, u32> = HashMap::try_from(bpf.map_mut("BLOCKLIST")?)?;
+    /*      // (1)
+       let mut blocklist: HashMap<_, u32, u32> = HashMap::try_from(bpf.map_mut("BLOCKLIST")?)?;
 
     // (2)
     let block_addr: u32 = Ipv4Addr::new(1, 1, 1, 1).try_into()?;
 
     // (3)
-    blocklist.insert(block_addr, 0, 0)?;
-
+    blocklist.insert(block_addr, 0, 0)?;*/
 
     // Get feedback from eBPF Module about decisions made
     let mut perf_array = AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS")?)?;
@@ -107,8 +156,33 @@ async fn main() -> Result<(), anyhow::Error> {
                     let buf = &mut buffers[i];
                     let ptr = buf.as_ptr() as *const PacketLog;
                     let data = unsafe { ptr.read_unaligned() };
-                    let src_addr = std::net::Ipv4Addr::from(data.ipv4_address);
-                    println!("LOG: SRC {}, ACTION {}, UID {}", src_addr, data.action, data.uid);
+                    let mut ip_addr_bytes: [u8; 16] = [0; 16];
+                    let mut counter = 0;
+                    for chunk in data.ip_address {
+                        let chunk_le_bytes = chunk.to_le_bytes();
+                        for byte in chunk_le_bytes {
+                            ip_addr_bytes[counter] = byte;
+                            counter += 1;
+                        }
+                    }
+                    let ip_addr = u128::from_le_bytes(ip_addr_bytes);
+                    let src_addr: Option<std::net::IpAddr> = match data.ip_version {
+                        4 => Some(std::net::IpAddr::V4(std::net::Ipv4Addr::from(
+                            ip_addr as u32,
+                        ))),
+                        6 => Some(std::net::IpAddr::V6(std::net::Ipv6Addr::from(ip_addr))),
+                        _ => None,
+                    };
+                    match src_addr {
+                        Some(src_addr) => println!(
+                            "LOG: SRC {}, ACTION {}, UID {}",
+                            src_addr, data.action, data.uid
+                        ),
+                        None => println!(
+                            "Error unknown IP version {} for uid {}",
+                            data.ip_version, data.uid
+                        ),
+                    }
                 }
             }
         });

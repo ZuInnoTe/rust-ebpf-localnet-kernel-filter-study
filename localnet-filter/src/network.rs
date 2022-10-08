@@ -2,6 +2,7 @@
 
 use std::net::IpAddr;
 
+const MAX_BIT_MASK_SIZE: u32 = 128; // IPv6 128 Bit
 /// Splits a CIDR into the prefix (ip address) and range
 ///
 /// # Arguments
@@ -14,16 +15,16 @@ use std::net::IpAddr;
 /// ```
 /// assert_eq!(("127.0.0.1","8"),   csplit_cidr("127.0.0.1/8").unwrap());
 /// ```
-fn split_cidr(cidr: String) -> Result<(String, String), String> {
+pub fn split_cidr(cidr: &String) -> Result<(String, String), String> {
     let v: Vec<&str> = cidr.split('/').collect();
     // test if a valid cidr is provided
     if v.len() != 2 {
         return Err("Invalid Cidr".to_string());
     }
     // test if range is numeric
-    match v[1].to_string().parse::<i32>() {
+    match v[1].to_string().parse::<u32>() {
         Ok(num) => {
-            if (num < 0) | (num > 128) {
+            if (num > MAX_BIT_MASK_SIZE) {
                 return Err(format!("Invalid range: {}", num));
             }
         }
@@ -44,15 +45,29 @@ fn split_cidr(cidr: String) -> Result<(String, String), String> {
 /// ```
 /// assert_eq!(2130706433,   convert_ip_addr_str_to_unsigned_integer("127.0.0.1").unwrap());
 /// ```
-fn convert_ip_addr_str_to_unsigned_integer(
-    ip_addr: String,
+pub fn convert_ip_addr_str_to_unsigned_integer(
+    ip_addr: &str,
 ) -> Result<u128, std::net::AddrParseError> {
-    let ip_addr: IpAddr = "127.0.0.1".parse()?;
+    let ip_addr: IpAddr = ip_addr.parse()?;
     let ip_int_representation: u128 = match ip_addr {
         IpAddr::V4(ip4) => u32::from(ip4) as u128,
         IpAddr::V6(ip6) => u128::from(ip6),
     };
     Ok(ip_int_representation)
+}
+
+pub fn convert_range_str_to_bit_mask(range: &str) -> Result<u128, String> {
+    let range_num = match range.parse::<u32>() {
+        Ok(num) => {
+            if (num > MAX_BIT_MASK_SIZE) {
+                return Err(format!("Invalid range: {}", num));
+            }
+            num
+        }
+        Err(err) => return Err("Cidr is not numeric".to_string()),
+    };
+    let mask: u128 = u128::MAX >> (MAX_BIT_MASK_SIZE - range_num);
+    Ok(mask)
 }
 
 #[cfg(test)]
@@ -62,16 +77,57 @@ mod tests {
     fn test_split_cidr_valid() {
         assert_eq!(
             ("127.0.0.1".to_string(), "8".to_string()),
-            super::split_cidr("127.0.0.1/8".to_string()).unwrap()
+            super::split_cidr(&"127.0.0.1/8".to_string()).unwrap()
         );
     }
 
     #[test]
-    fn test_split_cidr_invalid() {}
+    fn test_split_cidr_invalid_range() {
+        assert_eq!(
+            "Invalid range: 129".to_string(),
+            super::split_cidr(&"127.0.0.1/129".to_string()).unwrap_err()
+        );
+    }
 
     #[test]
-    fn test_convert_ip_addr_str_to_unsigned_integer_valid() {}
+    fn test_convert_ipv4_addr_str_to_unsigned_integer_valid() {
+        assert_eq!(
+            2130706433,
+            super::convert_ip_addr_str_to_unsigned_integer("127.0.0.1").unwrap()
+        );
+    }
 
     #[test]
-    fn test_convert_ip_addr_str_to_unsigned_integer_invalid() {}
+    fn test_convert_ipv4_addr_str_to_unsigned_integer_invalid() {
+        assert_eq!(
+            "invalid IP address syntax".to_string(),
+            super::convert_ip_addr_str_to_unsigned_integer("invalid")
+                .unwrap_err()
+                .to_string()
+        );
+    }
+
+    #[test]
+    fn test_convert_ipv6_addr_str_to_unsigned_integer_valid() {
+        assert_eq!(
+            1,
+            super::convert_ip_addr_str_to_unsigned_integer("::1").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_convert_range_str_to_bit_mask_valid() {
+        assert_eq!(
+            0b11111111u128,
+            super::convert_range_str_to_bit_mask("8").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_convert_range_str_to_bit_mask_invalid() {
+        assert_eq!(
+            "Invalid range: 129".to_string(),
+            super::convert_range_str_to_bit_mask("129").unwrap_err()
+        );
+    }
 }

@@ -7,7 +7,8 @@ use std::ptr;
 
 use libc::passwd;
 
-enum UserInformationError {
+#[derive(Debug, PartialEq)]
+pub enum UserInformationError {
     InvalidUserName,
     BufferOverflow,
     NoUserInformationAvailable,
@@ -17,7 +18,7 @@ enum UserInformationError {
 const MAX_USERNAME_LEN: usize = 100; // some safety feature to avoid overloading with a too long username
 const MAX_GETPWNAM_RETURN_BUFFER_LEN: usize = 8192; // some safety featrue to avoid reading a too large buffer for reading user information
 
-fn get_uid_by_name(username: &str) -> Result<u32, UserInformationError> {
+pub fn get_uid_by_name(username: &str) -> Result<u32, UserInformationError> {
     // convert username to a cstring to be able to use libc
     if username.len() > MAX_USERNAME_LEN {
         // do not accept too long usernames
@@ -67,4 +68,41 @@ fn get_uid_by_name(username: &str) -> Result<u32, UserInformationError> {
         return Err(UserInformationError::InvalidUserInformation);
     }
     Ok(pwd.pw_uid)
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn test_get_uid_by_name_valid() {
+        assert_eq!(0u32, super::get_uid_by_name("root").unwrap());
+    }
+
+    #[test]
+    fn test_get_uid_by_name_invalid() {
+        use rand::{Rng, SeedableRng};
+        let random_username_too_long_vec: Vec<u8> = rand::rngs::SmallRng::from_entropy()
+            .sample_iter(rand::distributions::Alphanumeric)
+            .take(super::MAX_USERNAME_LEN + 1)
+            .collect();
+        let random_username_too_long_str = String::from_utf8(random_username_too_long_vec).unwrap();
+        assert_eq!(
+            super::UserInformationError::InvalidUserName,
+            super::get_uid_by_name(&random_username_too_long_str).unwrap_err()
+        );
+    }
+
+    #[test]
+    fn test_get_uid_by_name_notfound() {
+        use rand::{Rng, SeedableRng};
+        let random_username_vec: Vec<u8> = rand::rngs::SmallRng::from_entropy()
+            .sample_iter(rand::distributions::Alphanumeric)
+            .take(super::MAX_USERNAME_LEN - 1)
+            .collect();
+        let random_username_str = String::from_utf8(random_username_vec).unwrap();
+        assert_eq!(
+            super::UserInformationError::NoUserInformationAvailable,
+            super::get_uid_by_name(&random_username_str).unwrap_err()
+        );
+    }
 }
