@@ -18,7 +18,7 @@ jobs:
        uses: actions/cache@v3
        with:
         path: rust
-        key: ${{ runner.os }}-rustup-${{env.RUSTUP_RUST_VERSION}}-${{env.RUSTUP_TOOLCHAIN}}
+        key: ${{ runner.os }}-rustup-${{env.RUSTUP_TOOLCHAIN}}
      - name: Install rust
        if: steps.cache-rust.outputs.cache-hit != 'true'
        run: |
@@ -29,6 +29,8 @@ jobs:
               rustup install nightly
      - name: Configure Rust and display version
        run: |
+           rustup default nightly
+           echo "RUSTUP_TOOLCHAIN=nightly" >> $GITHUB_ENV
            echo "PATH=$(dirname $(rustup which cargo)):$PATH" >> $GITHUB_ENV
            rustc --version
            cargo --version           
@@ -38,4 +40,4 @@ jobs:
           rustup toolchain list
           cargo --version
           cd localnet-filter-ebpf
-          cargo build --target bpfel-unknown-none -Z build-std=core --release
+          cargo +nightly build --target bpfel-unknown-none -Z build-std=core --release
