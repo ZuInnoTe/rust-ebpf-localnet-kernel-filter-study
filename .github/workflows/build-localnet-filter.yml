@@ -1,7 +1,8 @@
 name: rust-localnet-filter
 on: [push]
 env:
-    RUSTUP_TOOLCHAIN: "1.64"
+    RUSTUP_RUST_VERSION: "1.64"
+    RUSTUP_TOOLCHAIN: "nightly"
     RUSTUP_HOME: "./rust/rustup"
     CARGO_HOME: "./rust/cargo"
 
@@ -18,7 +19,7 @@ jobs:
        uses: actions/cache@v3
        with:
         path: rust
-        key: ${{ runner.os }}-rustup-${{env.RUSTUP_TOOLCHAIN}}
+        key: ${{ runner.os }}-rustup-${{env.RUSTUP_RUST_VERSION}}-${{env.RUSTUP_TOOLCHAIN}}
      - name: Install rust
        if: steps.cache-rust.outputs.cache-hit != 'true'
        run: |
@@ -34,4 +35,4 @@ jobs:
      - name: Build localnet-filter-ebpf
        run: | 
           cd localnet-filter-ebpf
-          cargo build --target bpfel-unknown-none -Z build-std=core --release
+          cargo +nightly build --target bpfel-unknown-none -Z build-std=core --release
