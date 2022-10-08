@@ -30,7 +30,7 @@ jobs:
      - name: Configure Rust and display version
        run: |
            echo "PATH=$(dirname $(rustup which cargo)):$PATH" >> $GITHUB_ENV
-           rustup default nightly  
+           echo "RUSTUP_TOOLCHAIN=nightly"  >> $GITHUB_ENV
            rustc --version
            cargo --version           
      - name: Build localnet-filter-ebpf
