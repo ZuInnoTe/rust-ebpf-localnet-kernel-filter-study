@@ -31,6 +31,7 @@ jobs:
        run: |
            rustup default nightly
            echo "RUSTUP_TOOLCHAIN=nightly" >> $GITHUB_ENV
+           export RUSTUP_TOOLCHAIN=nightly
            echo "PATH=$(dirname $(rustup which cargo)):$PATH" >> $GITHUB_ENV
            rustc --version
            cargo --version           
