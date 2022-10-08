@@ -34,5 +34,6 @@ jobs:
            cargo --version           
      - name: Build localnet-filter-ebpf
        run: | 
+          cargo --version
           cd localnet-filter-ebpf
           cargo +nightly  build --target bpfel-unknown-none -Z build-std=core --release
