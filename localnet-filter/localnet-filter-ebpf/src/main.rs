@@ -24,9 +24,6 @@ use bindings::{ethhdr, iphdr};
 #[map(name = "EVENTS")]
 static mut EVENTS: PerfEventArray<PacketLog> = PerfEventArray::with_max_entries(1024, 0);
 
-#[map(name = "BLOCKLIST")] // (1)
-static mut BLOCKLIST: HashMap<u32, u32> = HashMap::with_max_entries(1024, 0);
-
 #[map(name = "ENDPOINTLIST")] // contains the local endpoints that we should monitor for connection attempts
                               // key: userid
                               // value: list of tuples (prefix, range)
@@ -40,9 +37,20 @@ pub fn tc_egress(ctx: TcContext) -> i32 {
         Err(_) => TC_ACT_SHOT,
     }
 }
-//localnet_filter_common::range_contains_ip
 
-// (2)
+///  Decides if a package should be dropped because it is not whitelisted
+///
+/// # Arguments
+/// * `uid` - user id
+/// * `address` - IP address to block 
+///
+/// # Returns
+/// true if it should be allowed and false if not
+///
+/// # Examples
+/// ```
+/// assert_eq!(0u32, super::get_uid_by_name("root").unwrap());
+/// ```
 fn block_ip(uid: u32, address: u128) -> bool {
     unsafe {
         match ENDPOINTLIST.get(&uid) {
@@ -54,39 +62,52 @@ fn block_ip(uid: u32, address: u128) -> bool {
                             cidr_range_num,
                             address,
                         ) {
-                            return true;
+                            return false;
                         }
                     }
                 }
-                false
+                true
             }
-            None => false,
+            None => true,
         }
     }
 }
 
+/// Classify package via TC
+///
+/// # Arguments
+/// * `ctx` - TC context
+///
+/// # Returns
+/// Action what to do with the package (SHOT or PIPE)
+///
 fn try_tc_egress(ctx: TcContext) -> Result<i32, i64> {
+    // determine protocol
     let h_proto = u16::from_be(
         ctx.load(offset_of!(ethhdr, h_proto))
             .map_err(|_| TC_ACT_PIPE)?,
     );
+    // only process ipv4 and ipv6 packages
     let ip_version: u32 = match h_proto {
         ETH_P_IP => 4,
         ETH_P_IPV6 => 6,
         _ => return Ok(TC_ACT_PIPE),
     };
-
+    // determine destination of the package
     let destination: u128 = match ip_version {
         4 => u32::from_be(ctx.load(ETH_HDR_LEN + offset_of!(iphdr, daddr))?) as u128,
         6 => u128::from_be(ctx.load(ETH_HDR_LEN + offset_of!(iphdr, daddr))?),
         _ => 0,
     };
+    // determine user id of the socket
     let uid = ctx.get_socket_uid();
+    // make a decision what to do with the package
     let action = if block_ip(uid, destination) {
         TC_ACT_SHOT
     } else {
         TC_ACT_PIPE
     };
+    // convert address for making it usable in a PerfEvent
     let mut ip_address: [u32; 4] = [0; 4];
     let mut counter = 0;
     for chunk in (destination as u128).to_le_bytes().chunks(4) {
@@ -97,7 +118,7 @@ fn try_tc_egress(ctx: TcContext) -> Result<i32, i64> {
         );
         counter += 1;
     }
-
+    // create PerfEvent for the user space program to log the decision
     let log_entry = PacketLog {
         ip_address: ip_address,
         ip_version: ip_version,
@@ -107,10 +128,13 @@ fn try_tc_egress(ctx: TcContext) -> Result<i32, i64> {
     unsafe {
         EVENTS.output(&ctx, &log_entry, 0);
     }
+    // return decision
     Ok(action)
 }
 
+// Linux kernel cosntants
 const ETH_P_IP: u16 = 0x0800;
+const ETH_P_IPV6: u16 = 0x86dd;
 const ETH_HDR_LEN: usize = mem::size_of::<ethhdr>();
 
 #[panic_handler]

@@ -130,15 +130,6 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     }
 
-    /*      // (1)
-       let mut blocklist: HashMap<_, u32, u32> = HashMap::try_from(bpf.map_mut("BLOCKLIST")?)?;
-
-    // (2)
-    let block_addr: u32 = Ipv4Addr::new(1, 1, 1, 1).try_into()?;
-
-    // (3)
-    blocklist.insert(block_addr, 0, 0)?;*/
-
     // Get feedback from eBPF Module about decisions made
     let mut perf_array = AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS")?)?;
 
@@ -174,11 +165,11 @@ async fn main() -> Result<(), anyhow::Error> {
                         _ => None,
                     };
                     match src_addr {
-                        Some(src_addr) => println!(
+                        Some(src_addr) => info!(
                             "LOG: SRC {}, ACTION {}, UID {}",
                             src_addr, data.action, data.uid
                         ),
-                        None => println!(
+                        None => info!(
                             "Error unknown IP version {} for uid {}",
                             data.ip_version, data.uid
                         ),

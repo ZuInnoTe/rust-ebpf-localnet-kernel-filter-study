@@ -56,6 +56,18 @@ pub fn convert_ip_addr_str_to_unsigned_integer(
     Ok(ip_int_representation)
 }
 
+/// Converts a range into its corresponding bit representation
+/// 
+/// # Arguments
+/// * `range` - The range as str, e.g. "8"
+///
+/// # Returns
+/// The bit mask as u128 or in case of an error a string with the error message
+///
+/// # Examples
+/// ```
+///         assert_eq!(0b11111111u128,super::convert_range_str_to_bit_mask("8").unwrap());
+/// ```
 pub fn convert_range_str_to_bit_mask(range: &str) -> Result<u128, String> {
     let range_num = match range.parse::<u32>() {
         Ok(num) => {

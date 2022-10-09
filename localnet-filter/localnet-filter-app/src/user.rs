@@ -8,6 +8,7 @@ use std::ptr;
 use libc::passwd;
 
 #[derive(Debug, PartialEq)]
+/// Error when retrieving user information
 pub enum UserInformationError {
     InvalidUserName,
     BufferOverflow,
@@ -18,6 +19,18 @@ pub enum UserInformationError {
 const MAX_USERNAME_LEN: usize = 100; // some safety feature to avoid overloading with a too long username
 const MAX_GETPWNAM_RETURN_BUFFER_LEN: usize = 8192; // some safety featrue to avoid reading a too large buffer for reading user information
 
+/// Gets the uid by username. Works only on systems with libc
+///
+/// # Arguments
+/// * `username` - username for which to determine the id
+///
+/// # Returns
+/// uid if users exists or an [UserInformationError]
+///
+/// # Examples
+/// ```
+/// assert_eq!(0u32, super::get_uid_by_name("root").unwrap());
+/// ```
 pub fn get_uid_by_name(username: &str) -> Result<u32, UserInformationError> {
     // convert username to a cstring to be able to use libc
     if username.len() > MAX_USERNAME_LEN {
