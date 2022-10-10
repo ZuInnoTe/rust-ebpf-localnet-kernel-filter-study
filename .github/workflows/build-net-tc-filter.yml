@@ -1,4 +1,4 @@
-name: rust-localnet-filter
+name: rust-net-tc-filter
 on: [push]
 env:
     RUSTUP_TOOLCHAIN: "1.64"
@@ -6,7 +6,7 @@ env:
     CARGO_HOME: "./rust/cargo"
 
 jobs:
-  build-rust-localnet-filter:
+  build-rust-net-tc-filter:
     runs-on: ubuntu-latest
     steps:
      - name: Checkout repository
@@ -36,12 +36,12 @@ jobs:
            echo "PATH=$(dirname $(rustup which cargo)):$(pwd)/rust/cargo/bin:$PATH" >> $GITHUB_ENV
            rustc --version
            cargo --version           
-     - name: Build localnet-filter-ebpf
+     - name: Build net-tc-filter-ebpf
        run: | 
           rustup default nightly
           rustup toolchain list
           cargo --version
           cargo install bpf-linker
-          cd localnet-filter
-          cd localnet-filter-ebpf
+          cd net-tc-filter
+          cd lnet-tc-filter-ebpf
           cargo build --target bpfel-unknown-none -Z build-std=core --release
