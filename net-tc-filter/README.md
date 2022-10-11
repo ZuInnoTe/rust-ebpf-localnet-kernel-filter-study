@@ -14,7 +14,7 @@ A potential extension could also include filtering by process name, because the 
 
 ## Further References
 ### Available kernel eBPF functions for TC
-You can look up the available eBPF functions that you can use in a eBPF for TC in net/core/filter.c, e.g. https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/net/core/filter.c?h=v5.19#n7713
+You can look up the available eBPF functions that you can use in a eBPF for TC in net/core/filter.c, e.g. https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/net/core/filter.c?h=v6.0#n7869
 
 Note: aya-rs may not have implemented all of them yet, but it is rather straight forward to link others. 
 
@@ -92,7 +92,7 @@ One could also think about further restrictions, e.g. only allow calls at specif
 
 The application consists of the following components:
 * net-tc-filter-app - the user space application that loads the eBPF module, configures it and receives network traffic decision made by the app. Note: The eBPF module is compiled into the application, ie we do not load it from the file system when executing the application. You can change this behaviour easily.
-* lcoalnet-filter-common - common functionality for the eBPF module and the userspace application
+* net-tc-filter-common - common functionality for the eBPF module and the userspace application
 * net-tc-filter-ebpf - the eBPF module that makes network traffic decisions as configured
 
 You need to install rust nightly to compile "net-tc-filter-ebpf". You need to configure aya-rs as specified in [their instructions](https://aya-rs.dev/book/start/development/).

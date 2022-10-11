@@ -28,6 +28,7 @@ jobs:
               rustup install $RUSTUP_TOOLCHAIN
               rustup install nightly
               rustup component add rust-src --toolchain nightly
+              rustup component add clippy
      - name: Configure Rust and display version
        run: |
            rustup default nightly
