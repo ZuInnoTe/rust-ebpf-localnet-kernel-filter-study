@@ -17,7 +17,7 @@ pub enum UserInformationError {
 }
 
 const MAX_USERNAME_LEN: usize = 100; // some safety feature to avoid overloading with a too long username
-const MAX_GETPWNAM_RETURN_BUFFER_LEN: usize = 8192; // some safety featrue to avoid reading a too large buffer for reading user information
+const MAX_GETPWNAM_RETURN_BUFFER_LEN: usize = 8192; // some safety feature to avoid reading a too large buffer for reading user information
 
 /// Gets the uid by username. Works only on systems with libc
 ///

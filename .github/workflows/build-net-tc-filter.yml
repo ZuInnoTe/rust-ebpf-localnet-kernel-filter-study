@@ -44,5 +44,5 @@ jobs:
           cargo --version
           cargo install bpf-linker
           cd net-tc-filter
-          cd lnet-tc-filter-ebpf
+          cd net-tc-filter-ebpf
           cargo build --target bpfel-unknown-none -Z build-std=core --release

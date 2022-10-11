@@ -57,7 +57,7 @@ pub fn convert_ip_addr_str_to_unsigned_integer(
 }
 
 /// Converts a range into its corresponding bit representation
-/// 
+///
 /// # Arguments
 /// * `range` - The range as str, e.g. "8"
 ///

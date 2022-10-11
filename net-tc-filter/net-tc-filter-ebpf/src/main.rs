@@ -42,7 +42,7 @@ pub fn tc_egress(ctx: TcContext) -> i32 {
 ///
 /// # Arguments
 /// * `uid` - user id
-/// * `address` - IP address to block 
+/// * `address` - IP address to block
 ///
 /// # Returns
 /// true if it should be allowed and false if not
@@ -132,7 +132,7 @@ fn try_tc_egress(ctx: TcContext) -> Result<i32, i64> {
     Ok(action)
 }
 
-// Linux kernel cosntants
+// Linux kernel constants
 const ETH_P_IP: u16 = 0x0800;
 const ETH_P_IPV6: u16 = 0x86dd;
 const ETH_HDR_LEN: usize = mem::size_of::<ethhdr>();
