@@ -26,7 +26,7 @@ This study investigates the usage of [Rust](https://www.rust-lang.org/) and eBPF
 The software written as part of this study is generic, you can use this to allow/block any IPv4, IPv6 address (other protocols are simply allowed).
 
 # Examples
-* Use case implemented as a eBPF TC (traffic control) program: [net-tc-filter-ebpf](net-tc-filter-ebpf)
+* Use case implemented as a eBPF TC (traffic control) program: [net-tc-filter](net-tc-filter)
 * Use case implemented as a eBPF sock program: WIP
 * Use case implemented as a eBPF uprobe syscall filter (e.g. for the sharedd OpenSSL Library): WIP
 
