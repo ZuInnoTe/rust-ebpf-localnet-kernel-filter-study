@@ -26,8 +26,9 @@ This study investigates the usage of [Rust](https://www.rust-lang.org/) and eBPF
 The software written as part of this study is generic, you can use this to allow/block any IPv4, IPv6 address (other protocols are simply allowed).
 
 # Examples
-* Use case implemented as a eBPF TC (traffic control) program: [net-tc-filter](net-tc-filter)
-* Use case implemented as a eBPF uprobe syscall filter (e.g. for the sharedd OpenSSL Library): WIP
+* Use case implemented as a eBPF TC (traffic control) program: [net-tc-filter](net-tc-filter). This allows packets to configured ip (4 or 6) addresses by the configured users. All other packages are blocked. It does not look at the packet content, but this can be implemented.
+* Use case implemented as a eBPF socket filter program: This filters packets by certain users to certain IP addresses based on a certain request pattern and provides them to a user space program. Note: Socket filter cannot block/allow a certain packet to be processed. Its main purpose is demonstrating some auditing special case of the use case. WIP
+* Use case implemented as a eBPF uprobe syscall filter (e.g. for the shared OpenSSL Library): This allows data processed by the configured shared OpenSSL library to be analyzed for HTTP requests Note: This is on the assumption the data is sent as part of a real request, which we cannot ensure. One can block the call to OpenSSLgot WIP
 
 
 # eBPF
