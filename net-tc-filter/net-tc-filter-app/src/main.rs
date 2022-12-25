@@ -1,4 +1,4 @@
-//! Demonstration on how how to use a Linux eBPF module (XDP) for filtering network traffic based on the IP (IPv4, IPv6).
+//! Demonstration on how how to use a Linux eBPF module (traffic classifier (tc)) for filtering network traffic based on the IP (IPv4, IPv6).
 //! This part is the main program that loads the configuration, the eBPF module and communicates the configuration to the eBPF moddule
 //! Adaption from: https://github.com/aya-rs/book/blob/main/examples/tc-egress/
 

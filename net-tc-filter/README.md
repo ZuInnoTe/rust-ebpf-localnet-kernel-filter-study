@@ -27,7 +27,7 @@ There the program skbuff calls the ebPF: https://github.com/aya-rs/aya/blob/main
 As you can see in the bindings, e.g. for x86_64, there are already a lot of other bpf functions so you can just easily add them yourself and possibly contribute this to the aya-rs project. Nevertheless, keep in mind that not all functions are allowed by the Linux kernel for a given eBPF program type, e.g. tc.
 
 # Running
-You can run the the app provided in net-tc-filter-app. During its compilation it includes the eBPF tc of net-tc-filter-ebpf. Thus during runtime it loads it into the kernel, configures the eBPF tc according to the configuration and the eBPF tc based on the allow-rules in the configuration drops traffic (TC_ACT_SHOT) or forwards it to other tcs (TC_ACT_SHOT). The decision the eBPF module makes is communicateed to the net-tc-filter-app for logging purposes.
+You can run the the app provided in net-tc-filter-app. During its compilation it includes the eBPF tc of net-tc-filter-ebpf. Thus during runtime it loads it into the kernel, configures the eBPF tc according to the configuration and the eBPF tc based on the allow-rules in the configuration drops traffic (TC_ACT_SHOT) or forwards it to other tcs (TC_ACT_PIPE). The decision the eBPF module makes is communicated to the net-tc-filter-app for logging purposes.
 
 You need to provide the binary the right capabilities. Generally it is NOT recommended to run as root as this is less secure.
 
