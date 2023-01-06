@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_yaml;
 use std::collections::HashMap;
 
-/// Definition of an app
+/// Definition of an endpoint
 #[derive(Deserialize, Serialize)]
 pub struct Configuration {
     pub endpoints: Vec<HashMap<String, EndpointDefinition>>,

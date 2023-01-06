@@ -157,17 +157,17 @@ async fn main() -> Result<(), anyhow::Error> {
                         }
                     }
                     let ip_addr = u128::from_le_bytes(ip_addr_bytes);
-                    let src_addr: Option<std::net::IpAddr> = match data.ip_version {
+                    let dst_addr: Option<std::net::IpAddr> = match data.ip_version {
                         4 => Some(std::net::IpAddr::V4(std::net::Ipv4Addr::from(
                             ip_addr as u32,
                         ))),
                         6 => Some(std::net::IpAddr::V6(std::net::Ipv6Addr::from(ip_addr))),
                         _ => None,
                     };
-                    match src_addr {
-                        Some(src_addr) => info!(
-                            "LOG: SRC {}, ACTION {}, UID {}",
-                            src_addr, data.action, data.uid
+                    match dst_addr {
+                        Some(dst_addr) => info!(
+                            "LOG: DST {}, ACTION {}, UID {}",
+                            dst_addr, data.action, data.uid
                         ),
                         None => info!(
                             "Error unknown IP version {} for uid {}",

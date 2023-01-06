@@ -87,13 +87,13 @@ fn try_tc_egress(ctx: TcContext) -> Result<i32, i64> {
         ctx.load(offset_of!(ethhdr, h_proto))
             .map_err(|_| TC_ACT_PIPE)?,
     );
-    // only process ipv4 and ipv6 packages
+    // only process ipv4 and ipv6 packet
     let ip_version: u32 = match h_proto {
         ETH_P_IP => 4,
         ETH_P_IPV6 => 6,
         _ => return Ok(TC_ACT_PIPE),
     };
-    // determine destination of the package
+    // determine destination of the packet
     let destination: u128 = match ip_version {
         4 => u32::from_be(ctx.load(ETH_HDR_LEN + offset_of!(iphdr, daddr))?) as u128,
         6 => u128::from_be(ctx.load(ETH_HDR_LEN + offset_of!(iphdr, daddr))?),
@@ -101,7 +101,7 @@ fn try_tc_egress(ctx: TcContext) -> Result<i32, i64> {
     };
     // determine user id of the socket
     let uid = ctx.get_socket_uid();
-    // make a decision what to do with the package
+    // make a decision what to do with the packet
     let action = if block_ip(uid, destination) {
         TC_ACT_SHOT
     } else {
