@@ -12,6 +12,7 @@ pub struct Options {
     command: Command,
 }
 
+/// Adapted from the Aya example
 #[derive(Debug, Parser)]
 enum Command {
     Codegen,
