@@ -33,7 +33,7 @@ You need to provide the binary the right capabilities. Generally it is NOT recom
 
 You can use setcap to provide it the right [capabilities](https://man7.org/linux/man-pages/man7/capabilities.7.html):
 ```
-sudo setcap cap_bpf,cap_perfmon,cap_net_admin=+ep net-tc-filter/net-tc-filter-app/target/release/net-tc-filter
+sudo setcap cap_bpf,cap_perfmon,cap_net_admin=+ep net-tc-filter/net-tc-filter-app/target/release/net-tc-filter-app
 ```
 
 Note: This types of capabilities require a recent kernel.
@@ -99,7 +99,7 @@ You need to install rust nightly to compile "net-tc-filter-ebpf". You need to co
 
 You can compile the net-tc-filter-ebpf by changing into its directory and executing:
 ```
-cargo +nightly  build --target bpfel-unknown-none -Z build-std=core --release
+cargo build --target bpfel-unknown-none -Z build-std=core --release
 ```
 
 You can afterwards compile the net-tc-filter-app by changing into its directory and executing:
