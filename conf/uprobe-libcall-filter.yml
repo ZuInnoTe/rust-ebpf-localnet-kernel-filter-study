@@ -1,0 +1,5 @@
+applications: 
+        filter:
+             openssl1.1:
+                openssl_lib: "/usr/lib64/libssl.so.1.1"
+                 
