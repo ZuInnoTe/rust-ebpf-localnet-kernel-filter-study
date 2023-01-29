@@ -138,7 +138,7 @@ You need to install rust nightly to compile sock-filter-ebpf". You need to confi
 
 You can compile the sock-filter-ebpf by changing into its directory and executing:
 ```
-cargo +nightly  build --target bpfel-unknown-none -Z build-std=core --release
+cargo build --target bpfel-unknown-none -Z build-std=core --release
 ```
 
 You can afterwards compile the sock-filter-app by changing into its directory and executing:

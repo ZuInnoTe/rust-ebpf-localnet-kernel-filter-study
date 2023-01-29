@@ -1,0 +1,37 @@
+[package]
+name = "uprobe-libcall-filter-ebpf"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+
+[dependencies]
+aya-bpf = { git = "https://github.com/aya-rs/aya", branch = "main" }
+aya-bpf-bindings = { git = "https://github.com/aya-rs/aya", branch = "main" }
+aya-log-ebpf = { git = "https://github.com/aya-rs/aya", branch = "main" }
+uprobe-libcall-filter-common = { path = "../uprobe-libcall-filter-common" }
+memoffset = "0.6"
+
+[[bin]]
+name = "uprobe-libcall-filter"
+path = "src/main.rs"
+
+[profile.dev]
+opt-level = 3
+debug = false
+debug-assertions = false
+overflow-checks = false
+lto = true
+panic = "abort"
+incremental = false
+codegen-units = 1
+rpath = false
+
+[profile.release]
+lto = true
+panic = "abort"
+codegen-units = 1
+
+[workspace]
+members = []

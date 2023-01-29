@@ -1,0 +1,19 @@
+[package]
+name = "uprobe-libcall-filter-common"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+
+[features]
+default = []
+user = [ "aya" ]
+
+
+[dependencies]
+aya = { version = ">=0.11", optional = true }
+
+
+[lib]
+path = "src/lib.rs"
