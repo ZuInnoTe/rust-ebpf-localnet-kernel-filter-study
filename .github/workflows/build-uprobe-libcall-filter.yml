@@ -6,7 +6,7 @@ env:
     CARGO_HOME: "./rust/cargo"
 
 jobs:
-  build-rust-sock-filter:
+  build-rust-urpobe-libcall-filter:
     runs-on: ubuntu-latest
     steps:
      - name: Checkout repository
