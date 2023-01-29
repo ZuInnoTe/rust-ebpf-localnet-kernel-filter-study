@@ -13,7 +13,7 @@ pub struct Configuration {
 /// General properties of an application
 #[derive(Deserialize, Serialize)]
 pub struct ApplicationDefinition {
-    pub openssl_lib: String
+    pub openssl_lib: String,
 }
 
 /// Load configuration for the filter

@@ -2,7 +2,6 @@
 //! This part is the main program that loads the configuration, the eBPF module and communicates the configuration to the eBPF moddule
 //! Adaption from: https://github.com/aya-rs/book/blob/main/examples/tc-egress/
 
-
 use aya::{
     include_bytes_aligned, maps::perf::AsyncPerfEventArray, programs::UProbe, util::online_cpus,
     Bpf,
