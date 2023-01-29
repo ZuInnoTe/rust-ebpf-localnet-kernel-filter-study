@@ -172,8 +172,6 @@ applications:
                  
 ```
 
-Y
-
 # Build
 
 The application consists of the following components:

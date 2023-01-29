@@ -9,16 +9,15 @@ use aya_bpf::{
     macros::map,
     macros::uprobe,
     macros::uretprobe,
-    maps::{HashMap, PerCpuArray, PerfEventArray, PerfEventByteArray},
+    maps::{HashMap, PerCpuArray, PerfEventByteArray},
     programs::ProbeContext,
 };
 use aya_bpf_bindings::helpers::{bpf_get_current_pid_tgid, bpf_probe_read};
-use aya_log_ebpf::{info, warn};
+use aya_log_ebpf::{ warn};
 #[allow(non_upper_case_globals)]
 #[allow(non_snake_case)]
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
-use core::slice;
 
 #[repr(C)]
 pub struct DataBuf {
@@ -65,7 +64,7 @@ pub fn openssl_read_probe(ctx: ProbeContext) -> u32 {
     let buffer_ptr: *const core::ffi::c_void = *&ctx.arg(1).unwrap();
 
     unsafe {
-        SSLREADARGSMAP.insert(&current_pid_tgid, &buffer_ptr, 0);
+        SSLREADARGSMAP.insert(&current_pid_tgid, &buffer_ptr, 0).unwrap();
     }
     return 0;
 }
@@ -80,11 +79,10 @@ pub fn openssl_read_probe(ctx: ProbeContext) -> u32 {
 pub fn openssl_read_ret_probe(ctx: ProbeContext) -> u32 {
     // get the current process id
     let current_pid_tgid = unsafe { bpf_get_current_pid_tgid() };
-    let current_pid = current_pid_tgid >> 32;
 
     // get return value (is the length of data read)
     let ret_value_len: i32 = ctx.ret().unwrap();
-    if (ret_value_len > 0) {
+    if ret_value_len > 0 {
         // only if there was actually sth. to read.
 
         if ret_value_len
@@ -102,8 +100,8 @@ pub fn openssl_read_ret_probe(ctx: ProbeContext) -> u32 {
             unsafe {
                 match SSLREADARGSMAP.get(&current_pid_tgid) {
                     Some(src_buffer_ptr) => {
-                        if let Some(output_buf_ptr) = unsafe { SSL_READ_DATA_BUF.get_ptr_mut(0) } {
-                            let mut output_buf = unsafe { &mut *output_buf_ptr };
+                        if let Some(output_buf_ptr) = SSL_READ_DATA_BUF.get_ptr_mut(0) {
+                            let output_buf =  &mut *output_buf_ptr ;
 
                             bpf_probe_read(
                                 output_buf.buf.as_mut_ptr() as *mut core::ffi::c_void,
@@ -111,13 +109,11 @@ pub fn openssl_read_ret_probe(ctx: ProbeContext) -> u32 {
                                 *src_buffer_ptr,
                             );
 
-                            unsafe {
                                 SSLREADDATA.output(
                                     &ctx,
                                     &output_buf.buf[..ret_value_len as usize],
                                     0,
                                 );
-                            }
                         }
                     }
                     None => (),
@@ -128,7 +124,7 @@ pub fn openssl_read_ret_probe(ctx: ProbeContext) -> u32 {
 
     // clean up map
     unsafe {
-        SSLREADARGSMAP.remove(&current_pid_tgid);
+        SSLREADARGSMAP.remove(&current_pid_tgid).unwrap();
     }
     return 0;
 }
@@ -147,7 +143,7 @@ pub fn openssl_wrke_probe(ctx: ProbeContext) -> u32 {
     let buffer_ptr: *const core::ffi::c_void = *&ctx.arg(1).unwrap();
 
     unsafe {
-        SSLWRITEARGSMAP.insert(&current_pid_tgid, &buffer_ptr, 0);
+        SSLWRITEARGSMAP.insert(&current_pid_tgid, &buffer_ptr, 0).unwrap();
     }
 
     return 0;
@@ -163,11 +159,10 @@ pub fn openssl_wrke_probe(ctx: ProbeContext) -> u32 {
 pub fn openssl_write_ret_probe(ctx: ProbeContext) -> u32 {
     // get the current process id
     let current_pid_tgid = unsafe { bpf_get_current_pid_tgid() };
-    let current_pid = current_pid_tgid >> 32;
 
     // get return value (is the length of data read)
     let ret_value_len: i32 = ctx.ret().unwrap();
-    if (ret_value_len > 0) {
+    if ret_value_len > 0 {
         // only if there was actually sth. to read.
 
         if ret_value_len
@@ -185,8 +180,8 @@ pub fn openssl_write_ret_probe(ctx: ProbeContext) -> u32 {
             unsafe {
                 match SSLWRITEARGSMAP.get(&current_pid_tgid) {
                     Some(src_buffer_ptr) => {
-                        if let Some(output_buf_ptr) = unsafe { SSL_WRITE_DATA_BUF.get_ptr_mut(0) } {
-                            let mut output_buf = unsafe { &mut *output_buf_ptr };
+                        if let Some(output_buf_ptr) = SSL_WRITE_DATA_BUF.get_ptr_mut(0)  {
+                            let output_buf =&mut *output_buf_ptr ;
 
                             bpf_probe_read(
                                 output_buf.buf.as_mut_ptr() as *mut core::ffi::c_void,
@@ -194,14 +189,13 @@ pub fn openssl_write_ret_probe(ctx: ProbeContext) -> u32 {
                                 *src_buffer_ptr,
                             );
 
-                            unsafe {
                                 SSLWRITEDATA.output(
                                     &ctx,
                                     &output_buf.buf[..ret_value_len as usize],
                                     0,
                                 );
                             }
-                        }
+                        
                     }
                     None => (),
                 }
@@ -211,7 +205,7 @@ pub fn openssl_write_ret_probe(ctx: ProbeContext) -> u32 {
 
     // clean up map
     unsafe {
-        SSLWRITEARGSMAP.remove(&current_pid_tgid);
+        SSLWRITEARGSMAP.remove(&current_pid_tgid).unwrap();
     }
     return 0;
 }
