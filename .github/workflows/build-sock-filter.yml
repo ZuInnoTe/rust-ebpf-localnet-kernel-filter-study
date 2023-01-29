@@ -1,7 +1,7 @@
 name: rust-sock-filter
 on: [push]
 env:
-    RUSTUP_TOOLCHAIN: "1.66"
+    RUSTUP_TOOLCHAIN: "1.67"
     RUSTUP_HOME: "./rust/rustup"
     CARGO_HOME: "./rust/cargo"
 
@@ -37,7 +37,7 @@ jobs:
            echo "PATH=$(dirname $(rustup which cargo)):$(pwd)/rust/cargo/bin:$PATH" >> $GITHUB_ENV
            rustc --version
            cargo --version           
-     - name: Build net-tc-filter-ebpf
+     - name: Build sock-filter-ebpf
        run: | 
           rustup default nightly
           rustup toolchain list
