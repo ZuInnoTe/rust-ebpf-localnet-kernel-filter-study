@@ -9,7 +9,7 @@ Generally, the approach works also with all other possible IP addresses without 
 
 
 ## Blog
-Find additional considerations in this blog post (WIP).
+Find additional considerations in [this blog post](https://zuinnote.eu/blog/?p=2114).
 ## Code
 The code is available under:
 * Codeberg (a non-commercial European hosted Git for Open Source): https://codeberg.org/ZuInnoTe/rust-ebpf-localnet-kernel-filter-study
