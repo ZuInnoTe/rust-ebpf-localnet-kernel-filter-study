@@ -7,8 +7,8 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.68"
-aya = { version = ">=0.11", features=["async_tokio"] }
-aya-log = {version="0.1"}
+aya = { git = "https://github.com/aya-rs/aya", features = ["async_tokio"] }
+aya-log = { git = "https://github.com/aya-rs/aya" }
 bytes = {version = "1"}
 clap = { version = "4.1.1", features = ["derive"] }
 libc = {version="0.2", features = [ "extra_traits" ] }
@@ -16,9 +16,9 @@ sock-filter-common = { path = "../sock-filter-common", features=["user"] }
 log = {version="0.4"}
 serde = {version="1.0.152", features = ["derive"] }
 serde_yaml = {version = "0.9.16"}
-simplelog = {version="0.12"}
 tokio = { version = "1.24.1", features = ["macros", "rt", "rt-multi-thread", "net", "signal","sync"] }
 uuid = {version="1.2.2"}
+env_logger = "0.10"
 
 [dev-dependencies]
 rand = {version="0.8.5", features = ["small_rng"]}

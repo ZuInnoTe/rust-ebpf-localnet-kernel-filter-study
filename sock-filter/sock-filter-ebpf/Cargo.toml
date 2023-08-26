@@ -8,10 +8,9 @@ edition = "2021"
 
 [dependencies]
 aya-bpf = { git = "https://github.com/aya-rs/aya", branch = "main" }
-aya-bpf-bindings = { git = "https://github.com/aya-rs/aya", branch = "main" }
-aya-log-ebpf = { git = "https://github.com/aya-rs/aya-log", branch = "main" }
+aya-log-ebpf = { git = "https://github.com/aya-rs/aya", branch = "main" }
 sock-filter-common = { path = "../sock-filter-common" }
-memoffset = "0.6"
+memoffset = "0.8"
 
 [[bin]]
 name = "sock-filter"

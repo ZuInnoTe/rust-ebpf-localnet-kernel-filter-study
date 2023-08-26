@@ -2,23 +2,15 @@
 //! This part is the main program that loads the configuration, the eBPF module and communicates the configuration to the eBPF moddule
 //! Adaption from: https://github.com/aya-rs/book/blob/main/examples/tc-egress/
 
-use aya::{
-    include_bytes_aligned,
-    maps::{perf::AsyncPerfEventArray, HashMap},
-    programs::SocketFilter,
-    util::online_cpus,
-    Bpf,
-};
+use aya::{include_bytes_aligned, maps::HashMap, programs::SocketFilter, Bpf};
 use bytes::BytesMut;
 use clap::Parser;
 use log::{error, info};
-use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
 use sock_filter_common;
 use sock_filter_common::ConfigEbpf;
 use sock_filter_common::Netfilter;
-use sock_filter_common::PacketLog;
+use tokio::signal;
 use tokio::sync::broadcast;
-use tokio::{signal, task};
 
 // own modules
 pub mod conf;
@@ -37,16 +29,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let opt = Opt::parse();
 
     let config = conf::load_config(opt.config_path).unwrap();
-    TermLogger::init(
-        LevelFilter::Debug,
-        ConfigBuilder::new()
-            .set_target_level(LevelFilter::Error)
-            .set_location_level(LevelFilter::Error)
-            .build(),
-        TerminalMode::Mixed,
-        ColorChoice::Auto,
-    )?;
-
+    env_logger::init();
     // communicate to async processes events, e.g. terminate application
     let (tx_sign, mut _rx_sign) = broadcast::channel::<u32>(2);
     // This will include your eBPF object file as raw bytes at compile-time and load it at
@@ -62,22 +45,20 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut bpf = Bpf::load(include_bytes_aligned!(
         "../../sock-filter-ebpf/target/bpfel-unknown-none/release/sock-filter"
     ))?;
-
     // iterate through configuration and attach to endpoint
     // add/update hashmap for userid for allowed cidr
     for endpoint in config.endpoints {
         for (endpoint_name, endpoint_config) in endpoint {
+            let mut endpointlist: HashMap<_, u32, Netfilter> =
+                HashMap::try_from(bpf.map_mut("ENDPOINTLIST").unwrap())?;
+
+            let mut allow_all_users = false;
             // add user
             for username in &endpoint_config.filter {
-                let mut endpointlist: HashMap<_, u32, Netfilter> =
-                    HashMap::try_from(bpf.map_mut("ENDPOINTLIST")?)?;
-
-                let mut configlist: HashMap<_, u32, u32> =
-                    HashMap::try_from(bpf.map_mut("CONFIGLIST")?)?;
                 let uid = match username.as_str() {
                     "*" => {
                         info!("Allowing filtering of socket traffic of all users");
-                        configlist.insert(ConfigEbpf::AllowAll as u32, 1, 0)?;
+                        allow_all_users = true;
                         0
                     }
                     _ => match user::get_uid_by_name(&username) {
@@ -130,6 +111,11 @@ async fn main() -> Result<(), anyhow::Error> {
                 }
                 endpointlist.insert(uid, netfilter, 0)?;
             }
+            if allow_all_users == true {
+                let mut configlist: HashMap<_, u32, u32> =
+                    HashMap::try_from(bpf.map_mut("CONFIGLIST").unwrap())?;
+                configlist.insert(ConfigEbpf::AllowAll as u32, 1, 0)?;
+            }
             info!("Configuring endpoint: {}", endpoint_name);
             // attach eBPF program to specific network interface
             for iface in endpoint_config.iface {
@@ -151,56 +137,6 @@ async fn main() -> Result<(), anyhow::Error> {
                 tokio::spawn(async move { read_socket(sock, sock_subscriber).await });
             }
         }
-    }
-    // Get feedback from eBPF Module about decisions made - evens are sent by the eBPF program to the user space program
-    let mut perf_array = AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS")?)?;
-
-    for cpu_id in online_cpus()? {
-        let mut buf = perf_array.open(cpu_id, None)?;
-
-        task::spawn(async move {
-            let mut buffers = (0..10)
-                .map(|_| BytesMut::with_capacity(1024))
-                .collect::<Vec<_>>();
-
-            loop {
-                let events = buf.read_events(&mut buffers).await.unwrap();
-                for i in 0..events.read {
-                    let buf = &mut buffers[i];
-                    let ptr = buf.as_ptr() as *const PacketLog;
-                    let data = unsafe { ptr.read_unaligned() };
-
-                    let mut ip_addr_bytes: [u8; 16] = [0; 16];
-                    let mut counter = 0;
-                    for chunk in data.ip_address {
-                        let chunk_le_bytes = chunk.to_le_bytes();
-                        for byte in chunk_le_bytes {
-                            ip_addr_bytes[counter] = byte;
-                            counter += 1;
-                        }
-                    }
-                    let ip_addr = u128::from_le_bytes(ip_addr_bytes);
-                    let dst_addr: Option<std::net::IpAddr> = match data.ip_version {
-                        4 => Some(std::net::IpAddr::V4(std::net::Ipv4Addr::from(
-                            ip_addr as u32,
-                        ))),
-                        6 => Some(std::net::IpAddr::V6(std::net::Ipv6Addr::from(ip_addr))),
-                        _ => None,
-                    };
-
-                    match dst_addr {
-                        Some(dst_addr) => info!(
-                            "EBPF EVENT: LOG: DST {}, IP Version {}, SUID {}, DECISION {}",
-                            dst_addr, data.ip_version, data.uid, data.decision
-                        ),
-                        None => info!(
-                            "EBPF EVENT: Error unknown IP version {} for uid {}",
-                            data.ip_version, data.uid
-                        ),
-                    }
-                }
-            }
-        });
     }
 
     // waiting for end

@@ -6,9 +6,10 @@ use core::mem;
 
 use aya_bpf::{
     macros::{map, socket_filter},
-    maps::{HashMap, PerfEventArray},
+    maps::HashMap,
     programs::SkBuffContext,
 };
+use aya_log_ebpf::info;
 mod bindings;
 use bindings::{ethhdr, iphdr, ipv6hdr};
 
@@ -16,15 +17,11 @@ use memoffset::offset_of;
 
 use sock_filter_common::ConfigEbpf;
 use sock_filter_common::Netfilter;
-use sock_filter_common::PacketLog;
 
 #[allow(non_upper_case_globals)]
 #[allow(non_snake_case)]
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
-#[map(name = "EVENTS")]
-static mut EVENTS: PerfEventArray<PacketLog> = PerfEventArray::with_max_entries(1024, 0);
-
 #[map(name = "CONFIGLIST")] // contains some configuration items
 static mut CONFIGLIST: HashMap<u32, u32> = HashMap::<u32, u32>::with_max_entries(1024, 0);
 
@@ -35,7 +32,7 @@ static mut ENDPOINTLIST: HashMap<u32, Netfilter> =
     HashMap::<u32, Netfilter>::with_max_entries(1024, 0);
 
 /// This is the "main" function of the eBPF program
-#[socket_filter(name = "sock_egress")]
+#[socket_filter]
 pub fn sock_egress(ctx: SkBuffContext) -> i64 {
     match try_sock_egress(ctx) {
         Ok(ret) => ret,
@@ -118,28 +115,22 @@ fn try_sock_egress(ctx: SkBuffContext) -> Result<i64, i64> {
         0i64
     };
 
-    // convert address for making it usable in a PerfEvent
-    let mut ip_address: [u32; 4] = [0; 4];
-    let mut counter = 0;
-    for chunk in (destination as u128).to_le_bytes().chunks(4) {
-        ip_address[counter] = u32::from_le_bytes(
-            chunk
-                .try_into()
-                .expect("Internal Error: Size of Chunks is not 4 bytes"),
-        );
-        counter += 1;
-    }
-
-    // create PerfEvent for the user space program to log the decision
-    let log_entry = PacketLog {
-        ip_address: ip_address,
-        ip_version: ip_version as u32,
-        decision: decision as i32,
-        uid: uid,
-    };
-
-    unsafe {
-        EVENTS.output(&ctx, &log_entry, 0);
+    match ip_version {
+        4 => {
+            let ip_address = destination as u32;
+            info!(
+                &ctx,
+                "VERSION {}, DEST {:i}, DECISION {}, UID {}", ip_version, ip_address, decision, uid
+            )
+        }
+        6 => {
+            let ip_address = (destination as u128).to_le_bytes();
+            info!(
+                &ctx,
+                "VERSION {}, DEST {:i}, DECISION {}, UID {}", ip_version, ip_address, decision, uid
+            )
+        }
+        _ => info!(&ctx, "Unkown IP version {}, UID {}", ip_version, uid),
     }
 
     Ok(decision)

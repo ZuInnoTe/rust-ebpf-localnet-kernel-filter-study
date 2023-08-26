@@ -55,6 +55,11 @@ The following capabilities are needed:
 * cap_net_admin - eBPF program can make decision on the network, ie to filter a certain packet for a socket
 * cap_net_raw - user space application can create raw sockets
 
+You can run it as follows
+```
+RUST_LOG=info sock-filter/sock-filter-app/target/release/sock-filter-app
+```
+
 You will see an output similar to the following:
 ```
 18:02:47 [DEBUG] (1) aya::bpf: [/home/testuser/.cargo/registry/src/github.com-1ecc6299db9ec823/aya-0.11.0/src/bpf.rs:106] [FEAT PROBE] BPF program name support: true
