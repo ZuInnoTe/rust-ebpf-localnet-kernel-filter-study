@@ -6,7 +6,7 @@ use core::mem;
 use aya_bpf::{
     bindings::{TC_ACT_PIPE, TC_ACT_SHOT},
     macros::{classifier, map},
-    maps::{HashMap},
+    maps::HashMap,
     programs::TcContext,
 };
 use aya_log_ebpf::info;
@@ -20,7 +20,6 @@ use net_tc_filter_common::Netfilter;
 #[allow(dead_code)]
 mod bindings;
 use bindings::{ethhdr, iphdr};
-
 
 #[map] // contains the local endpoints that we should monitor for connection attempt, key: userid, value: list of tuples (prefix, range)
 static mut ENDPOINTLIST: HashMap<u32, Netfilter> =
@@ -114,19 +113,24 @@ fn try_tc_egress(ctx: TcContext) -> Result<i32, i64> {
         );
         counter += 1;
     }
- 
+
     match ip_version {
         4 => {
-            let ip_address=destination as u32; 
-            info!(&ctx, "VERSION {}, DEST {:i}, ACTION {}, UID {}", ip_version, ip_address, action, uid)
-        },
-        6 =>  {
-            let ip_address=(destination as u128).to_le_bytes();
-            info!(&ctx, "VERSION {}, DEST {:i}, ACTION {}, UID {}", ip_version, ip_address, action, uid)
-        },
-        _ => info!(&ctx, "Unkown IP version {}, UID {}",ip_version,uid)
+            let ip_address = destination as u32;
+            info!(
+                &ctx,
+                "VERSION {}, DEST {:i}, ACTION {}, UID {}", ip_version, ip_address, action, uid
+            )
+        }
+        6 => {
+            let ip_address = (destination as u128).to_le_bytes();
+            info!(
+                &ctx,
+                "VERSION {}, DEST {:i}, ACTION {}, UID {}", ip_version, ip_address, action, uid
+            )
+        }
+        _ => info!(&ctx, "Unkown IP version {}, UID {}", ip_version, uid),
     }
-  
 
     // return decision
     Ok(action)

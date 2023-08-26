@@ -2,19 +2,16 @@
 //! This part is the main program that loads the configuration, the eBPF module and communicates the configuration to the eBPF moddule
 //! Adaption from: https://github.com/aya-rs/book/blob/main/examples/tc-egress/
 
-
-
 use aya::{
     include_bytes_aligned,
-    maps::{HashMap},
+    maps::HashMap,
     programs::{tc, SchedClassifier, TcAttachType},
     Bpf,
 };
 use aya_log::BpfLogger;
 use clap::Parser;
-use log::{info,warn};
-use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
-use tokio::{signal};
+use log::{info, warn};
+use tokio::signal;
 
 use net_tc_filter_common::Netfilter;
 
@@ -55,7 +52,6 @@ async fn main() -> Result<(), anyhow::Error> {
         warn!("failed to initialize eBPF logger: {}", e);
     }
 
-
     // iterate through configuration and attach to endpoint
     // add/update hashmap for userid for allowed cidr
     for endpoint in config.endpoints {
@@ -72,8 +68,8 @@ async fn main() -> Result<(), anyhow::Error> {
             }
             // add user
             let mut endpointlist: HashMap<_, u32, Netfilter> =
-            HashMap::try_from(bpf.map_mut("ENDPOINTLIST").unwrap())?;
-    
+                HashMap::try_from(bpf.map_mut("ENDPOINTLIST").unwrap())?;
+
             for user in &endpoint_config.allow {
                 let uid = match user::get_uid_by_name(&user) {
                     Ok(uid) => uid,
@@ -123,7 +119,6 @@ async fn main() -> Result<(), anyhow::Error> {
             }
         }
     }
-
 
     info!("Waiting for Ctrl-C...");
     signal::ctrl_c().await?;

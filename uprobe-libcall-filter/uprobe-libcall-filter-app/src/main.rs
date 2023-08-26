@@ -57,6 +57,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 "Configuring openssl_lib: {}",
                 application_definition.openssl_lib
             );
+
             // attach probes for read
             let program_ossreadprobe: &mut UProbe =
                 bpf.program_mut("osslreadprobe").unwrap().try_into()?;

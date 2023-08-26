@@ -11,7 +11,7 @@ aya-bpf = { git = "https://github.com/aya-rs/aya", branch = "main" }
 aya-bpf-bindings = { git = "https://github.com/aya-rs/aya", branch = "main" }
 aya-log-ebpf = { git = "https://github.com/aya-rs/aya", branch = "main" }
 uprobe-libcall-filter-common = { path = "../uprobe-libcall-filter-common" }
-memoffset = "0.6"
+memoffset = "0.8"
 
 [[bin]]
 name = "uprobe-libcall-filter"

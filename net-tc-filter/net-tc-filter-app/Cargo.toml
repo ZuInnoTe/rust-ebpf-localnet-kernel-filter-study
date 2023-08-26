@@ -16,7 +16,6 @@ net-tc-filter-common = { path = "../net-tc-filter-common", features=["user"] }
 log = {version="0.4"}
 serde = {version="1.0.152", features = ["derive"] }
 serde_yaml = {version = "0.9.16"}
-simplelog = {version="0.12"}
 tokio = { version = "1.24.1", features = ["macros", "rt", "rt-multi-thread", "net", "signal"] }
 env_logger = "0.10"
 

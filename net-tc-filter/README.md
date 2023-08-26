@@ -45,8 +45,9 @@ The following capabilities are needed:
 
 You can run it as follows
 ```
-RUST_LOG=info net-tc-filter/net-tc-filter-app/target/release/net-tc-filter-app 
+RUST_LOG=info net-tc-filter/net-tc-filter-app/target/release/net-tc-filter-app
 ```
+
 You will see an output similar to the following:
 ```
 8:48:09 [DEBUG] (1) aya::bpf: [/home/testuser/.cargo/registry/src/github.com-1ecc6299db9ec823/aya-0.11.0/src/bpf.rs:106] [FEAT PROBE] BPF program name support: true
