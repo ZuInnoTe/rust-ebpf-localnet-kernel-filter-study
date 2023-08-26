@@ -2,23 +2,21 @@
 //! This part is the main program that loads the configuration, the eBPF module and communicates the configuration to the eBPF moddule
 //! Adaption from: https://github.com/aya-rs/book/blob/main/examples/tc-egress/
 
-use std::net::{self, Ipv4Addr};
+
 
 use aya::{
     include_bytes_aligned,
-    maps::{perf::AsyncPerfEventArray, HashMap},
+    maps::{HashMap},
     programs::{tc, SchedClassifier, TcAttachType},
-    util::online_cpus,
     Bpf,
 };
-use bytes::BytesMut;
+use aya_log::BpfLogger;
 use clap::Parser;
-use log::info;
+use log::{info,warn};
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
-use tokio::{signal, task};
+use tokio::{signal};
 
 use net_tc_filter_common::Netfilter;
-use net_tc_filter_common::PacketLog;
 
 use net_tc_filter_common;
 
@@ -38,16 +36,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let opt = Opt::parse();
 
     let config = conf::load_config(opt.config_path).unwrap();
-    TermLogger::init(
-        LevelFilter::Debug,
-        ConfigBuilder::new()
-            .set_target_level(LevelFilter::Error)
-            .set_location_level(LevelFilter::Error)
-            .build(),
-        TerminalMode::Mixed,
-        ColorChoice::Auto,
-    )?;
-
+    env_logger::init();
     // This will include your eBPF object file as raw bytes at compile-time and load it at
     // runtime. This approach is recommended for most real-world use cases. If you would
     // like to specify the eBPF program at runtime rather than at compile-time, you can
@@ -61,9 +50,11 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut bpf = Bpf::load(include_bytes_aligned!(
         "../../net-tc-filter-ebpf/target/bpfel-unknown-none/release/net-tc-filter"
     ))?;
+    if let Err(e) = BpfLogger::init(&mut bpf) {
+        // This can happen if you remove all log statements from your eBPF program.
+        warn!("failed to initialize eBPF logger: {}", e);
+    }
 
-    let mut endpointlist: HashMap<_, u32, Netfilter> =
-        HashMap::try_from(bpf.map_mut("ENDPOINTLIST")?)?;
 
     // iterate through configuration and attach to endpoint
     // add/update hashmap for userid for allowed cidr
@@ -80,6 +71,9 @@ async fn main() -> Result<(), anyhow::Error> {
                 program.attach(&iface, TcAttachType::Egress)?;
             }
             // add user
+            let mut endpointlist: HashMap<_, u32, Netfilter> =
+            HashMap::try_from(bpf.map_mut("ENDPOINTLIST").unwrap())?;
+    
             for user in &endpoint_config.allow {
                 let uid = match user::get_uid_by_name(&user) {
                     Ok(uid) => uid,
@@ -130,54 +124,6 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     }
 
-    // Get feedback from eBPF Module about decisions made
-    let mut perf_array = AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS")?)?;
-
-    for cpu_id in online_cpus()? {
-        let mut buf = perf_array.open(cpu_id, None)?;
-
-        task::spawn(async move {
-            let mut buffers = (0..10)
-                .map(|_| BytesMut::with_capacity(1024))
-                .collect::<Vec<_>>();
-
-            loop {
-                let events = buf.read_events(&mut buffers).await.unwrap();
-                for i in 0..events.read {
-                    let buf = &mut buffers[i];
-                    let ptr = buf.as_ptr() as *const PacketLog;
-                    let data = unsafe { ptr.read_unaligned() };
-                    let mut ip_addr_bytes: [u8; 16] = [0; 16];
-                    let mut counter = 0;
-                    for chunk in data.ip_address {
-                        let chunk_le_bytes = chunk.to_le_bytes();
-                        for byte in chunk_le_bytes {
-                            ip_addr_bytes[counter] = byte;
-                            counter += 1;
-                        }
-                    }
-                    let ip_addr = u128::from_le_bytes(ip_addr_bytes);
-                    let dst_addr: Option<std::net::IpAddr> = match data.ip_version {
-                        4 => Some(std::net::IpAddr::V4(std::net::Ipv4Addr::from(
-                            ip_addr as u32,
-                        ))),
-                        6 => Some(std::net::IpAddr::V6(std::net::Ipv6Addr::from(ip_addr))),
-                        _ => None,
-                    };
-                    match dst_addr {
-                        Some(dst_addr) => info!(
-                            "LOG: DST {}, ACTION {}, UID {}",
-                            dst_addr, data.action, data.uid
-                        ),
-                        None => info!(
-                            "Error unknown IP version {} for uid {}",
-                            data.ip_version, data.uid
-                        ),
-                    }
-                }
-            }
-        });
-    }
 
     info!("Waiting for Ctrl-C...");
     signal::ctrl_c().await?;

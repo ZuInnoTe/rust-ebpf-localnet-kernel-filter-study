@@ -6,13 +6,13 @@ use core::mem;
 use aya_bpf::{
     bindings::{TC_ACT_PIPE, TC_ACT_SHOT},
     macros::{classifier, map},
-    maps::{HashMap, PerfEventArray},
+    maps::{HashMap},
     programs::TcContext,
 };
+use aya_log_ebpf::info;
 use memoffset::offset_of;
 
 use net_tc_filter_common::Netfilter;
-use net_tc_filter_common::PacketLog;
 
 #[allow(non_upper_case_globals)]
 #[allow(non_snake_case)]
@@ -21,16 +21,12 @@ use net_tc_filter_common::PacketLog;
 mod bindings;
 use bindings::{ethhdr, iphdr};
 
-#[map(name = "EVENTS")]
-static mut EVENTS: PerfEventArray<PacketLog> = PerfEventArray::with_max_entries(1024, 0);
 
-#[map(name = "ENDPOINTLIST")] // contains the local endpoints that we should monitor for connection attempts
-                              // key: userid
-                              // value: list of tuples (prefix, range)
+#[map] // contains the local endpoints that we should monitor for connection attempt, key: userid, value: list of tuples (prefix, range)
 static mut ENDPOINTLIST: HashMap<u32, Netfilter> =
     HashMap::<u32, Netfilter>::with_max_entries(1024, 0);
 
-#[classifier(name = "tc_egress")]
+#[classifier]
 pub fn tc_egress(ctx: TcContext) -> i32 {
     match try_tc_egress(ctx) {
         Ok(ret) => ret,
@@ -118,16 +114,20 @@ fn try_tc_egress(ctx: TcContext) -> Result<i32, i64> {
         );
         counter += 1;
     }
-    // create PerfEvent for the user space program to log the decision
-    let log_entry = PacketLog {
-        ip_address: ip_address,
-        ip_version: ip_version,
-        action: action,
-        uid: uid,
-    };
-    unsafe {
-        EVENTS.output(&ctx, &log_entry, 0);
+ 
+    match ip_version {
+        4 => {
+            let ip_address=destination as u32; 
+            info!(&ctx, "VERSION {}, DEST {:i}, ACTION {}, UID {}", ip_version, ip_address, action, uid)
+        },
+        6 =>  {
+            let ip_address=(destination as u128).to_le_bytes();
+            info!(&ctx, "VERSION {}, DEST {:i}, ACTION {}, UID {}", ip_version, ip_address, action, uid)
+        },
+        _ => info!(&ctx, "Unkown IP version {}, UID {}",ip_version,uid)
     }
+  
+
     // return decision
     Ok(action)
 }

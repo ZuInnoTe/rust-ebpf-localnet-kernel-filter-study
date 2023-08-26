@@ -1,13 +1,6 @@
 #![no_std]
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct PacketLog {
-    pub ip_address: [u32; 4],
-    pub ip_version: u32,
-    pub action: i32,
-    pub uid: u32,
-}
+
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -15,8 +8,6 @@ pub struct Netfilter {
     pub filter: [(u128, u128); MAX_ENDPOINT_ENTRIES_USER],
 }
 
-#[cfg(feature = "user")]
-unsafe impl aya::Pod for PacketLog {}
 #[cfg(feature = "user")]
 unsafe impl aya::Pod for Netfilter {}
 
