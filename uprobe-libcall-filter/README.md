@@ -71,7 +71,7 @@ RUST_LOG=info uprobe-libcall-filter/uprobe-libcall-filter-app/target/release/upr
 Note: Depending on your currently running applications you may see a lot of unencrypted data. You can though easily implement a filter to search only for a specific process id to reduce what is captured.
 
 
-After you have started the application you can run a command that uses the OpenSSL library. We use here curl. First we make sure that curl uses the version of OpenSSL that we configured (see next section) and then we run curl:
+After you have started the application you can run a command that uses the OpenSSL library. We use here curl. See also below how to determine the shared library location. First we make sure that curl uses the version of OpenSSL that we configured (see next section) and then we run curl:
 ```
 curl --version
 curl 7.87.0 (x86_64-suse-linux-gnu) libcurl/7.87.0 OpenSSL/1.1.1s-fips zlib/1.2.13 brotli/1.0.9 zstd/1.5.2 libidn2/2.3.4 libpsl/0.21.2 (+libidn2/2.3.4) libssh/0.10.4/openssl/zlib nghttp2/1.51.0
@@ -192,3 +192,18 @@ cargo build --release
 ```
 
 See the above sections for running the compiled program.
+
+# Determine shared library location
+Sometimes it can be tricky to find out which shared library version is loaded from where. Modern Linux distributions often have the same library in different versions in different places for different applications. 
+
+First, you can use [ldd](https://www.man7.org/linux/man-pages/man1/ldd.1.html) to look what shared libraries curl reference:
+```
+ldd /usr/bin/curl
+```
+
+We can see in the output also the used SSL library by curl
+```
+[..]
+/lib64/glibc-hwcaps/x86-64-v3/libssl.so.3.1.2
+[..]
+```
