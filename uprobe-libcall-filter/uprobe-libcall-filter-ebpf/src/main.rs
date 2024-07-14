@@ -5,14 +5,15 @@
 #![no_std]
 #![no_main]
 
-use aya_bpf::{
+use aya_ebpf::{
     macros::map,
     macros::uprobe,
     macros::uretprobe,
     maps::{HashMap, PerCpuArray, PerfEventByteArray},
     programs::ProbeContext,
+    programs::RetProbeContext,
 };
-use aya_bpf_bindings::helpers::{bpf_get_current_pid_tgid, bpf_probe_read};
+use aya_ebpf_bindings::helpers::{bpf_get_current_pid_tgid, bpf_probe_read};
 use aya_log_ebpf::warn;
 #[allow(non_upper_case_globals)]
 #[allow(non_snake_case)]
@@ -77,7 +78,7 @@ pub fn osslreadprobe(ctx: ProbeContext) -> u32 {
 /// # Return
 /// returns 0, but the return code is currently ignored in the kernel
 #[uretprobe]
-pub fn osslreadretprobe(ctx: ProbeContext) -> u32 {
+pub fn osslreadretprobe(ctx: RetProbeContext) -> u32 {
     // get the current process id
     let current_pid_tgid = unsafe { bpf_get_current_pid_tgid() };
 
@@ -155,7 +156,7 @@ pub fn osslwriteprobe(ctx: ProbeContext) -> u32 {
 /// # Return
 /// returns 0, but the return code is currently ignored in the kernel
 #[uretprobe]
-pub fn osslwriteretprobe(ctx: ProbeContext) -> u32 {
+pub fn osslwriteretprobe(ctx: RetProbeContext) -> u32 {
     // get the current process id
     let current_pid_tgid = unsafe { bpf_get_current_pid_tgid() };
 

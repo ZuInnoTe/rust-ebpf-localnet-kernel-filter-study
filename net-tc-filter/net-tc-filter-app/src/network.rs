@@ -24,11 +24,11 @@ pub fn split_cidr(cidr: &String) -> Result<(String, String), String> {
     // test if range is numeric
     match v[1].to_string().parse::<u32>() {
         Ok(num) => {
-            if (num > MAX_BIT_MASK_SIZE) {
+            if num > MAX_BIT_MASK_SIZE {
                 return Err(format!("Invalid range: {}", num));
             }
         }
-        Err(err) => return Err("Cidr is not numeric".to_string()),
+        Err(_err) => return Err("Cidr is not numeric".to_string()),
     }
     Ok((v[0].to_string(), v[1].to_string()))
 }
@@ -71,12 +71,12 @@ pub fn convert_ip_addr_str_to_unsigned_integer(
 pub fn convert_range_str_to_bit_mask(range: &str) -> Result<u128, String> {
     let range_num = match range.parse::<u32>() {
         Ok(num) => {
-            if (num > MAX_BIT_MASK_SIZE) {
+            if num > MAX_BIT_MASK_SIZE {
                 return Err(format!("Invalid range: {}", num));
             }
             num
         }
-        Err(err) => return Err("Cidr is not numeric".to_string()),
+        Err(_err) => return Err("Cidr is not numeric".to_string()),
     };
     let mask: u128 = u128::MAX >> (MAX_BIT_MASK_SIZE - range_num);
     Ok(mask)

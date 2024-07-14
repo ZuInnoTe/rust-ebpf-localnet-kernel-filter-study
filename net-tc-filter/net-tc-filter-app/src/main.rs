@@ -6,9 +6,9 @@ use aya::{
     include_bytes_aligned,
     maps::HashMap,
     programs::{tc, SchedClassifier, TcAttachType},
-    Bpf,
+    Ebpf,
 };
-use aya_log::BpfLogger;
+use aya_log::EbpfLogger;
 use clap::Parser;
 use log::{info, warn};
 use tokio::signal;
@@ -40,14 +40,14 @@ async fn main() -> Result<(), anyhow::Error> {
     // reach for `Bpf::load_file` instead.
     // load eBPF program
     #[cfg(debug_assertions)]
-    let mut bpf = Bpf::load(include_bytes_aligned!(
+    let mut bpf = Ebpf::load(include_bytes_aligned!(
         "../../net-tc-filter-ebpf/target/bpfel-unknown-none/debug/net-tc-filter"
     ))?;
     #[cfg(not(debug_assertions))]
-    let mut bpf = Bpf::load(include_bytes_aligned!(
+    let mut bpf = Ebpf::load(include_bytes_aligned!(
         "../../net-tc-filter-ebpf/target/bpfel-unknown-none/release/net-tc-filter"
     ))?;
-    if let Err(e) = BpfLogger::init(&mut bpf) {
+    if let Err(e) = EbpfLogger::init(&mut bpf) {
         // This can happen if you remove all log statements from your eBPF program.
         warn!("failed to initialize eBPF logger: {}", e);
     }

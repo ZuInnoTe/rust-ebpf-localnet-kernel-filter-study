@@ -4,9 +4,9 @@
 
 use aya::{
     include_bytes_aligned, maps::perf::AsyncPerfEventArray, programs::UProbe, util::online_cpus,
-    Bpf,
+    Ebpf,
 };
-use aya_log::BpfLogger;
+use aya_log::EbpfLogger;
 
 use bytes::BytesMut;
 use clap::Parser;
@@ -40,10 +40,10 @@ async fn main() -> Result<(), anyhow::Error> {
         "../../uprobe-libcall-filter-ebpf/target/bpfel-unknown-none/debug/uprobe-libcall-filter"
     ))?;
     #[cfg(not(debug_assertions))]
-    let mut bpf = Bpf::load(include_bytes_aligned!(
+    let mut bpf = Ebpf::load(include_bytes_aligned!(
         "../../uprobe-libcall-filter-ebpf/target/bpfel-unknown-none/release/uprobe-libcall-filter"
     ))?;
-    if let Err(e) = BpfLogger::init(&mut bpf) {
+    if let Err(e) = EbpfLogger::init(&mut bpf) {
         // This can happen if you remove all log statements from your eBPF program.
         warn!("failed to initialize eBPF logger: {}", e);
     }

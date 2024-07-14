@@ -2,8 +2,7 @@
 //! This part is the main program that loads the configuration, the eBPF module and communicates the configuration to the eBPF moddule
 //! Adaption from: https://github.com/aya-rs/book/blob/main/examples/tc-egress/
 
-use aya::{include_bytes_aligned, maps::HashMap, programs::SocketFilter, Bpf};
-use bytes::BytesMut;
+use aya::{include_bytes_aligned, maps::HashMap, programs::SocketFilter, Ebpf};
 use clap::Parser;
 use log::{error, info};
 use sock_filter_common;
@@ -38,11 +37,11 @@ async fn main() -> Result<(), anyhow::Error> {
     // reach for `Bpf::load_file` instead.
     // load eBPF program
     #[cfg(debug_assertions)]
-    let mut bpf = Bpf::load(include_bytes_aligned!(
+    let mut bpf = Ebpf::load(include_bytes_aligned!(
         "../../sockfilter-ebpf/target/bpfel-unknown-none/debug/sock-filter"
     ))?;
     #[cfg(not(debug_assertions))]
-    let mut bpf = Bpf::load(include_bytes_aligned!(
+    let mut bpf = Ebpf::load(include_bytes_aligned!(
         "../../sock-filter-ebpf/target/bpfel-unknown-none/release/sock-filter"
     ))?;
     // iterate through configuration and attach to endpoint

@@ -4,7 +4,7 @@
 /// Note: All non-IP protocols are rejected by default
 use core::mem;
 
-use aya_bpf::{
+use aya_ebpf::{
     macros::{map, socket_filter},
     maps::HashMap,
     programs::SkBuffContext,
