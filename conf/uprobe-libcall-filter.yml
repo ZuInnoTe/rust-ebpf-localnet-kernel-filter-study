@@ -1,5 +1,5 @@
 applications: 
         filter:
              openssl3.1:
-                openssl_lib: "/lib64/glibc-hwcaps/x86-64-v3/libssl.so.3.1.2"
+                openssl_lib: "/lib64/glibc-hwcaps/x86-64-v3/libssl.so.3.1.4"
                  

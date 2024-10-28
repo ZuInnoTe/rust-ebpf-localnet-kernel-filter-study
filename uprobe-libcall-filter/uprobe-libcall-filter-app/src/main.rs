@@ -7,7 +7,6 @@ use aya::{
     Ebpf,
 };
 use aya_log::EbpfLogger;
-
 use bytes::BytesMut;
 use clap::Parser;
 use log::{info, warn};
@@ -68,6 +67,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 &application_definition.openssl_lib,
                 None,
             )?;
+
             let program_ossreadprobe_ret: &mut UProbe =
                 bpf.program_mut("osslreadretprobe").unwrap().try_into()?;
             program_ossreadprobe_ret.load()?;
@@ -103,7 +103,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut ssl_read_perf_array =
         AsyncPerfEventArray::try_from(bpf.take_map("SSLREADDATA").unwrap())?;
 
-    for cpu_id in online_cpus()? {
+    for cpu_id in online_cpus().map_err(|(_, error)| error)? {
         let mut buf = ssl_read_perf_array.open(cpu_id, None)?;
         task::spawn(async move {
             let mut buffers = (0..10)
@@ -123,11 +123,11 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Get feedback from eBPF module of calls to SSL_write with unecrypted data
-    let mut ssl_read_perf_array =
+    let mut ssl_write_perf_array =
         AsyncPerfEventArray::try_from(bpf.take_map("SSLWRITEDATA").unwrap())?;
 
-    for cpu_id in online_cpus()? {
-        let mut buf = ssl_read_perf_array.open(cpu_id, None)?;
+    for cpu_id in online_cpus().map_err(|(_, error)| error)? {
+        let mut buf = ssl_write_perf_array.open(cpu_id, None)?;
         task::spawn(async move {
             let mut buffers = (0..10)
                 .map(|_| BytesMut::with_capacity(uprobe_libcall_filter_common::DATA_BUF_CAPACITY))

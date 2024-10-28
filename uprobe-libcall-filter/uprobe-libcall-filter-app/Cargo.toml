@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.68"
+anyhow = "1.0.86"
 # TODO: change to the stable version by the next release = 0.12
 aya = { git = "https://github.com/aya-rs/aya", branch = "main", features = [
     "async_tokio",
@@ -14,12 +14,13 @@ aya = { git = "https://github.com/aya-rs/aya", branch = "main", features = [
 aya-log = { git = "https://github.com/aya-rs/aya", branch = "main" }
 bytes = {version = "1"}
 clap = { version = "4.1.1", features = ["derive"] }
-env_logger = "0.10"
+env_logger = "0.11"
 uprobe-libcall-filter-common = { path = "../uprobe-libcall-filter-common", features=["user"] }
 log = {version="0.4"}
-serde = {version="1.0.152", features = ["derive"] }
+serde = {version="1.0.204", features = ["derive"] }
 serde_yaml = {version = "0.9.16"}
 tokio = { version = "1.25", features = ["macros", "rt", "rt-multi-thread", "net", "signal"] }
+
 
 [dev-dependencies]
 rand = {version="0.8.5", features = ["small_rng"]}

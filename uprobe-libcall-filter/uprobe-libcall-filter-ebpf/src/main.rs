@@ -6,6 +6,7 @@
 #![no_main]
 
 use aya_ebpf::{
+    bindings::__u32,
     macros::map,
     macros::uprobe,
     macros::uretprobe,
@@ -13,7 +14,7 @@ use aya_ebpf::{
     programs::ProbeContext,
     programs::RetProbeContext,
 };
-use aya_ebpf_bindings::helpers::{bpf_get_current_pid_tgid, bpf_probe_read};
+use aya_ebpf_bindings::helpers::{bpf_get_current_pid_tgid, bpf_probe_read_user};
 use aya_log_ebpf::warn;
 #[allow(non_upper_case_globals)]
 #[allow(non_snake_case)]
@@ -26,10 +27,10 @@ pub struct DataBuf {
 
 // Data structures for exchanging SSL_read data with user space
 #[map]
-pub static mut SSL_READ_DATA_BUF: PerCpuArray<DataBuf> = PerCpuArray::with_max_entries(1, 0);
+static SSLREADDATABUF: PerCpuArray<DataBuf> = PerCpuArray::with_max_entries(1, 0);
 
 #[map]
-pub static mut SSLREADDATA: PerfEventByteArray = PerfEventByteArray::new(0);
+static SSLREADDATA: PerfEventByteArray = PerfEventByteArray::new(0);
 
 #[map] // contains the pointer to the read buffer containing the decrypted data provided by OpenSSL
        // key is the tgid_pid of the process
@@ -39,10 +40,10 @@ static mut SSLREADARGSMAP: HashMap<u64, *const core::ffi::c_void> =
 
 // Data structures for exchanging SSL_write data with user space
 #[map]
-pub static mut SSL_WRITE_DATA_BUF: PerCpuArray<DataBuf> = PerCpuArray::with_max_entries(1, 0);
+static SSLWRITEDATABUF: PerCpuArray<DataBuf> = PerCpuArray::with_max_entries(1, 0);
 
 #[map]
-pub static mut SSLWRITEDATA: PerfEventByteArray = PerfEventByteArray::new(0);
+static SSLWRITEDATA: PerfEventByteArray = PerfEventByteArray::new(0);
 
 #[map] // contains the pointer to the read buffer containing the decrypted data provided by OpenSSL
        // key is the tgid_pid of the process
@@ -60,13 +61,15 @@ pub fn osslreadprobe(ctx: ProbeContext) -> u32 {
     // get the current process id
     let current_pid_tgid = unsafe { bpf_get_current_pid_tgid() };
 
-    // get the parameter containing the read buffer, cf. https://www.openssl.org/docs/man1.1.1/man3/SSL_read.html, Note: aya starts from 0 (ie Parameter 2 = arg(1))
-    let buffer_ptr: *const core::ffi::c_void = *&ctx.arg(1).unwrap();
-
+    // get the parameter containing the read buffer, cf. https://docs.openssl.org/3.0/man3/SSL_read/, Note: aya starts from 0 (ie Parameter 2 = arg(1))
+    let buffer_ptr: *const core::ffi::c_void = match *&ctx.arg(1) {
+        Some(ptr) => ptr,
+        None => return 0,
+    };
     unsafe {
-        SSLREADARGSMAP
-            .insert(&current_pid_tgid, &buffer_ptr, 0)
-            .unwrap();
+        match SSLREADARGSMAP.insert(&current_pid_tgid, &buffer_ptr, 0) {
+            _ => (),
+        };
     }
     return 0;
 }
@@ -83,31 +86,31 @@ pub fn osslreadretprobe(ctx: RetProbeContext) -> u32 {
     let current_pid_tgid = unsafe { bpf_get_current_pid_tgid() };
 
     // get return value (is the length of data read)
-    let ret_value_len: i32 = ctx.ret().unwrap();
+    // get return value (is the length of data read)
+    let ret_value_len: i32 = match ctx.ret() {
+        Some(ret) => ret,
+        None => return 0,
+    };
     if ret_value_len > 0 {
         // only if there was actually sth. to read.
-
-        if ret_value_len
-            > uprobe_libcall_filter_common::DATA_BUF_CAPACITY
-                .try_into()
-                .unwrap()
-        {
+        if ret_value_len as usize > uprobe_libcall_filter_common::DATA_BUF_CAPACITY {
             warn!(
                 &ctx,
-                "Read Buffer is larger than Buffer Capacity - data is not processed"
+                "Read Buffer {} is larger than Buffer Capacity {} - data is not processed",
+                ret_value_len,
+                uprobe_libcall_filter_common::DATA_BUF_CAPACITY
             );
         } else {
             // get pointer stored when the read function was called
-
             unsafe {
                 match SSLREADARGSMAP.get(&current_pid_tgid) {
                     Some(src_buffer_ptr) => {
-                        if let Some(output_buf_ptr) = SSL_READ_DATA_BUF.get_ptr_mut(0) {
+                        if let Some(output_buf_ptr) = SSLREADDATABUF.get_ptr_mut(0) {
                             let output_buf = &mut *output_buf_ptr;
-
-                            bpf_probe_read(
+                            bpf_probe_read_user(
                                 output_buf.buf.as_mut_ptr() as *mut core::ffi::c_void,
-                                (&ret_value_len).clone().try_into().unwrap(),
+                                ret_value_len as u32
+                                    & (uprobe_libcall_filter_common::DATA_BUF_CAPACITY - 1) as u32, // needed by eBPF verifier to be able to ensure that not more than necessary is read
                                 *src_buffer_ptr,
                             );
 
@@ -122,7 +125,9 @@ pub fn osslreadretprobe(ctx: RetProbeContext) -> u32 {
 
     // clean up map
     unsafe {
-        SSLREADARGSMAP.remove(&current_pid_tgid).unwrap();
+        match SSLREADARGSMAP.remove(&current_pid_tgid) {
+            _ => (),
+        }
     }
     return 0;
 }
@@ -137,15 +142,16 @@ pub fn osslwriteprobe(ctx: ProbeContext) -> u32 {
     // get the current process id
     let current_pid_tgid = unsafe { bpf_get_current_pid_tgid() };
 
-    // get the parameter containing the write buffer, cf. https://www.openssl.org/docs/man1.1.1/man3/SSL_write.html, Note: aya starts from 0 (ie Parameter 2 = arg(1))
-    let buffer_ptr: *const core::ffi::c_void = *&ctx.arg(1).unwrap();
-
+    // get the parameter containing the write buffer, cf. https://docs.openssl.org/3.0/man3/SSL_write/, Note: aya starts from 0 (ie Parameter 2 = arg(1))
+    let buffer_ptr: *const core::ffi::c_void = match *&ctx.arg(1) {
+        Some(ptr) => ptr,
+        None => return 0,
+    };
     unsafe {
-        SSLWRITEARGSMAP
-            .insert(&current_pid_tgid, &buffer_ptr, 0)
-            .unwrap();
+        match SSLWRITEARGSMAP.insert(&current_pid_tgid, &buffer_ptr, 0) {
+            _ => (),
+        };
     }
-
     return 0;
 }
 
@@ -161,15 +167,14 @@ pub fn osslwriteretprobe(ctx: RetProbeContext) -> u32 {
     let current_pid_tgid = unsafe { bpf_get_current_pid_tgid() };
 
     // get return value (is the length of data read)
-    let ret_value_len: i32 = ctx.ret().unwrap();
+    let ret_value_len: i32 = match ctx.ret() {
+        Some(ret) => ret,
+        None => return 0,
+    };
     if ret_value_len > 0 {
         // only if there was actually sth. to read.
 
-        if ret_value_len
-            > uprobe_libcall_filter_common::DATA_BUF_CAPACITY
-                .try_into()
-                .unwrap()
-        {
+        if ret_value_len as usize > uprobe_libcall_filter_common::DATA_BUF_CAPACITY {
             warn!(
                 &ctx,
                 "Write Buffer is larger than Buffer Capacity - data is not processed"
@@ -180,12 +185,12 @@ pub fn osslwriteretprobe(ctx: RetProbeContext) -> u32 {
             unsafe {
                 match SSLWRITEARGSMAP.get(&current_pid_tgid) {
                     Some(src_buffer_ptr) => {
-                        if let Some(output_buf_ptr) = SSL_WRITE_DATA_BUF.get_ptr_mut(0) {
+                        if let Some(output_buf_ptr) = SSLWRITEDATABUF.get_ptr_mut(0) {
                             let output_buf = &mut *output_buf_ptr;
-
-                            bpf_probe_read(
+                            bpf_probe_read_user(
                                 output_buf.buf.as_mut_ptr() as *mut core::ffi::c_void,
-                                (&ret_value_len).clone().try_into().unwrap(),
+                                ret_value_len as u32
+                                    & (uprobe_libcall_filter_common::DATA_BUF_CAPACITY - 1) as u32, // needed by eBPF verifier to be able to ensure that not more than necessary is read
                                 *src_buffer_ptr,
                             );
 
@@ -200,12 +205,14 @@ pub fn osslwriteretprobe(ctx: RetProbeContext) -> u32 {
 
     // clean up map
     unsafe {
-        SSLWRITEARGSMAP.remove(&current_pid_tgid).unwrap();
+        match SSLWRITEARGSMAP.remove(&current_pid_tgid) {
+            _ => (),
+        }
     }
     return 0;
 }
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { core::hint::unreachable_unchecked() }
+    loop {}
 }
