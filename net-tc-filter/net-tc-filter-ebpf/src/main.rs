@@ -143,5 +143,5 @@ const ETH_HDR_LEN: usize = mem::size_of::<ethhdr>();
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { core::hint::unreachable_unchecked() }
+    loop {}
 }

@@ -9,7 +9,7 @@ use aya_ebpf::{
     maps::HashMap,
     programs::SkBuffContext,
 };
-use aya_log_ebpf::info;
+use aya_log_ebpf::{info, warn};
 mod bindings;
 use bindings::{ethhdr, iphdr, ipv6hdr};
 
@@ -95,8 +95,26 @@ fn try_sock_egress(ctx: SkBuffContext) -> Result<i64, i64> {
     };
     // determine destination of the packet
     let destination: u128 = match ip_version {
-        4 => u32::from_be(ctx.load(ETH_HDR_LEN + offset_of!(iphdr, daddr)).unwrap()) as u128,
-        6 => u128::from_be(ctx.load(ETH_HDR_LEN + offset_of!(ipv6hdr, daddr)).unwrap()),
+        4 => {
+            let ipv4_bytes = match ctx.load(ETH_HDR_LEN + offset_of!(iphdr, daddr)) {
+                Ok(bytes) => bytes,
+                Err(_) => {
+                    warn!(&ctx, "Internal error reading IPv4 header");
+                    return Ok(0);
+                }
+            };
+            u32::from_be(ipv4_bytes) as u128
+        }
+        6 => {
+            let ipv6_bytes = match ctx.load(ETH_HDR_LEN + offset_of!(ipv6hdr, daddr)) {
+                Ok(bytes) => bytes,
+                Err(_) => {
+                    warn!(&ctx, "Internal error reading IPv6 header");
+                    return Ok(0);
+                }
+            };
+            u128::from_be(ipv6_bytes)
+        }
         _ => 0,
     };
 
@@ -144,5 +162,5 @@ const ETH_HDR_LEN: usize = mem::size_of::<ethhdr>();
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { core::hint::unreachable_unchecked() }
+    loop {}
 }
