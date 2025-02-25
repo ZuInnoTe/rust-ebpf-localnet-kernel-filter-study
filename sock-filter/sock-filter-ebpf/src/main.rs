@@ -23,12 +23,12 @@ use sock_filter_common::Netfilter;
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
 #[map(name = "CONFIGLIST")] // contains some configuration items
-static mut CONFIGLIST: HashMap<u32, u32> = HashMap::<u32, u32>::with_max_entries(1024, 0);
+static CONFIGLIST: HashMap<u32, u32> = HashMap::<u32, u32>::with_max_entries(1024, 0);
 
 #[map(name = "ENDPOINTLIST")] // contains the local endpoints that we should monitor for connection attempts
                               // key: userid
                               // value: list of tuples (prefix, range)
-static mut ENDPOINTLIST: HashMap<u32, Netfilter> =
+static ENDPOINTLIST: HashMap<u32, Netfilter> =
     HashMap::<u32, Netfilter>::with_max_entries(1024, 0);
 
 /// This is the "main" function of the eBPF program
