@@ -25,6 +25,11 @@ pub struct DataBuf {
     pub buf: [u8; uprobe_libcall_filter_common::DATA_BUF_CAPACITY],
 }
 
+struct c_ptr(*const core::ffi::c_void);
+unsafe impl Send for c_ptr {}
+unsafe impl Sync for c_ptr {}
+
+
 // Data structures for exchanging SSL_read data with user space
 #[map]
 static SSLREADDATABUF: PerCpuArray<DataBuf> = PerCpuArray::with_max_entries(1, 0);
@@ -35,8 +40,8 @@ static SSLREADDATA: PerfEventByteArray = PerfEventByteArray::new(0);
 #[map] // contains the pointer to the read buffer containing the decrypted data provided by OpenSSL
        // key is the tgid_pid of the process
        // value is the pointer to the read buffer
-static mut SSLREADARGSMAP: HashMap<u64, *const core::ffi::c_void> =
-    HashMap::<u64, *const core::ffi::c_void>::with_max_entries(1024, 0);
+static SSLREADARGSMAP: HashMap<u64, c_ptr> =
+    HashMap::<u64, c_ptr>::with_max_entries(1024, 0);
 
 // Data structures for exchanging SSL_write data with user space
 #[map]
@@ -48,8 +53,8 @@ static SSLWRITEDATA: PerfEventByteArray = PerfEventByteArray::new(0);
 #[map] // contains the pointer to the read buffer containing the decrypted data provided by OpenSSL
        // key is the tgid_pid of the process
        // value is the pointer to the read buffer
-static mut SSLWRITEARGSMAP: HashMap<u64, *const core::ffi::c_void> =
-    HashMap::<u64, *const core::ffi::c_void>::with_max_entries(1024, 0);
+static SSLWRITEARGSMAP: HashMap<u64, c_ptr> =
+    HashMap::<u64, c_ptr>::with_max_entries(1024, 0);
 
 /// This uprobe is triggered when a process calls the SSL_read function.
 /// It stores the address of the buffer containing the unencrypted data under the pid/tgid of the calling process
@@ -62,8 +67,8 @@ pub fn osslreadprobe(ctx: ProbeContext) -> u32 {
     let current_pid_tgid = unsafe { bpf_get_current_pid_tgid() };
 
     // get the parameter containing the read buffer, cf. https://docs.openssl.org/3.0/man3/SSL_read/, Note: aya starts from 0 (ie Parameter 2 = arg(1))
-    let buffer_ptr: *const core::ffi::c_void = match *&ctx.arg(1) {
-        Some(ptr) => ptr,
+    let buffer_ptr: c_ptr = match *&ctx.arg(1) {
+        Some(ptr) =>  c_ptr(ptr),
         None => return 0,
     };
     unsafe {
@@ -111,7 +116,7 @@ pub fn osslreadretprobe(ctx: RetProbeContext) -> u32 {
                                 output_buf.buf.as_mut_ptr() as *mut core::ffi::c_void,
                                 ret_value_len as u32
                                     & (uprobe_libcall_filter_common::DATA_BUF_CAPACITY - 1) as u32, // needed by eBPF verifier to be able to ensure that not more than necessary is read
-                                *src_buffer_ptr,
+                              src_buffer_ptr.0,
                             );
 
                             SSLREADDATA.output(&ctx, &output_buf.buf[..ret_value_len as usize], 0);
@@ -143,8 +148,8 @@ pub fn osslwriteprobe(ctx: ProbeContext) -> u32 {
     let current_pid_tgid = unsafe { bpf_get_current_pid_tgid() };
 
     // get the parameter containing the write buffer, cf. https://docs.openssl.org/3.0/man3/SSL_write/, Note: aya starts from 0 (ie Parameter 2 = arg(1))
-    let buffer_ptr: *const core::ffi::c_void = match *&ctx.arg(1) {
-        Some(ptr) => ptr,
+    let buffer_ptr: c_ptr = match *&ctx.arg(1) {
+        Some(ptr) => c_ptr(ptr),
         None => return 0,
     };
     unsafe {
@@ -191,7 +196,7 @@ pub fn osslwriteretprobe(ctx: RetProbeContext) -> u32 {
                                 output_buf.buf.as_mut_ptr() as *mut core::ffi::c_void,
                                 ret_value_len as u32
                                     & (uprobe_libcall_filter_common::DATA_BUF_CAPACITY - 1) as u32, // needed by eBPF verifier to be able to ensure that not more than necessary is read
-                                *src_buffer_ptr,
+                                src_buffer_ptr.0,
                             );
 
                             SSLWRITEDATA.output(&ctx, &output_buf.buf[..ret_value_len as usize], 0);
