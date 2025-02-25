@@ -6,15 +6,15 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.86"
+anyhow = "1.0.96"
 aya = { git = "https://github.com/aya-rs/aya", features = ["async_tokio"] }
 aya-log = { git = "https://github.com/aya-rs/aya" }
 bytes = {version = "1"}
-clap = { version = "4.1", features = ["derive"] }
+clap = { version = "4.5", features = ["derive"] }
 libc = {version="0.2"}
 net-tc-filter-common = { path = "../net-tc-filter-common", features=["user"] }
 log = {version="0.4"}
-serde = {version="1.0.204", features = ["derive"] }
+serde = {version="1.0.218", features = ["derive"] }
 serde_yaml = {version = "0.9.16"}
 tokio = { version = "1.25", features = ["macros", "rt", "rt-multi-thread", "net", "signal"] }
 env_logger = "0.11"
