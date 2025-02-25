@@ -22,7 +22,7 @@ mod bindings;
 use bindings::{ethhdr, iphdr};
 
 #[map] // contains the local endpoints that we should monitor for connection attempt, key: userid, value: list of tuples (prefix, range)
-static mut ENDPOINTLIST: HashMap<u32, Netfilter> =
+static ENDPOINTLIST: HashMap<u32, Netfilter> =
     HashMap::<u32, Netfilter>::with_max_entries(1024, 0);
 
 #[classifier]
@@ -48,7 +48,7 @@ pub fn tc_egress(ctx: TcContext) -> i32 {
 /// ```
 fn block_ip(uid: u32, address: u128) -> bool {
     unsafe {
-        match ENDPOINTLIST.get(&uid) {
+        match &ENDPOINTLIST.get(&uid) {
             Some(netfilter) => {
                 for (cidr_prefix_num, cidr_range_num) in netfilter.filter {
                     if cidr_prefix_num != 0 {
