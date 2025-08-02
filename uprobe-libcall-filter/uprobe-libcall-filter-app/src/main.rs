@@ -62,9 +62,9 @@ async fn main() -> Result<(), anyhow::Error> {
                 bpf.program_mut("osslreadprobe").unwrap().try_into()?;
             program_ossreadprobe.load()?;
             program_ossreadprobe.attach(
-                "SSL_read",
+                Some("SSL_read"),
+                0,
                 &application_definition.openssl_lib,
-                None,
                 None,
             )?;
 
@@ -72,9 +72,9 @@ async fn main() -> Result<(), anyhow::Error> {
                 bpf.program_mut("osslreadretprobe").unwrap().try_into()?;
             program_ossreadprobe_ret.load()?;
             program_ossreadprobe_ret.attach(
-                "SSL_read",
+                Some("SSL_read"),
+                0,
                 &application_definition.openssl_lib,
-                None,
                 None,
             )?;
             // attach probes for write
@@ -82,18 +82,18 @@ async fn main() -> Result<(), anyhow::Error> {
                 bpf.program_mut("osslwriteprobe").unwrap().try_into()?;
             program_osswriteprobe.load()?;
             program_osswriteprobe.attach(
-                "SSL_write",
+                Some("SSL_write"),
+                0,
                 &application_definition.openssl_lib,
-                None,
                 None,
             )?;
             let program_osswriteprobe_ret: &mut UProbe =
                 bpf.program_mut("osslwriteretprobe").unwrap().try_into()?;
             program_osswriteprobe_ret.load()?;
             program_osswriteprobe_ret.attach(
-                "SSL_write",
+           Some("SSL_write"),
+                0,
                 &application_definition.openssl_lib,
-                None,
                 None,
             )?;
         }

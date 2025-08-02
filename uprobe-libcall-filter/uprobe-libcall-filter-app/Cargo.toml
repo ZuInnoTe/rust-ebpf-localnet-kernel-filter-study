@@ -7,11 +7,8 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.86"
-# TODO: change to the stable version by the next release = 0.12
-aya = { git = "https://github.com/aya-rs/aya", branch = "main", features = [
-    "async_tokio",
-] }
-aya-log = { git = "https://github.com/aya-rs/aya", branch = "main" }
+aya = { version = "0.13.1", default-features = false }
+aya-log = { version = "0.2.1", default-features = false }
 bytes = {version = "1"}
 clap = { version = "4.1.1", features = ["derive"] }
 env_logger = "0.11"

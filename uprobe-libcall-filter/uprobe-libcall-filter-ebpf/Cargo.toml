@@ -7,9 +7,9 @@ edition = "2024"
 
 
 [dependencies]
-aya-ebpf = { git = "https://github.com/aya-rs/aya", branch = "main" }
-aya-ebpf-bindings = { git = "https://github.com/aya-rs/aya", branch = "main" }
-aya-log-ebpf = { git = "https://github.com/aya-rs/aya", branch = "main" }
+aya-ebpf = { version = "0.1.1", default-features = false }
+aya-log-ebpf = { version = "0.1.1", default-features = false }
+aya-ebpf-bindings = { version = "0.1.1", default-features = false }
 uprobe-libcall-filter-common = { path = "../uprobe-libcall-filter-common" }
 memoffset = "0.9"
 
