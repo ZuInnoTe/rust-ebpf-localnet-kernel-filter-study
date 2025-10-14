@@ -1,6 +1,5 @@
 //! Demonstration on how how to use a Linux eBPF module (socket filter) for filtering network traffic based on the IP (IPv4, IPv6).
 //! This part is the main program that loads the configuration, the eBPF module and communicates the configuration to the eBPF moddule
-//! Adaption from: https://github.com/aya-rs/book/blob/main/examples/tc-egress/
 
 use aya::{include_bytes_aligned, maps::HashMap, programs::SocketFilter, Ebpf};
 use clap::Parser;
