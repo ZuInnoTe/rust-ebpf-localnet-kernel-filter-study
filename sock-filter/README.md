@@ -31,9 +31,9 @@ Note: aya-rs may not have implemented all of them yet in the context, but they a
 
 ### SkBuffContext
 Find here the eBPF functions that are currently available in SkBuffContext:
-https://github.com/aya-rs/aya/blob/main/bpf/aya-bpf/src/programs/sk_buff.rs#L222
+https://github.com/aya-rs/aya/blob/main/ebpf/aya-ebpf/src/programs/sk_buff.rs#L222
 
-There the program skbuff calls the ebPF: https://github.com/aya-rs/aya/blob/main/bpf/aya-bpf/src/programs/sk_buff.rs#L56
+There the program skbuff calls the ebPF: https://github.com/aya-rs/aya/blob/main/ebpf/aya-ebpf/src/programs/sk_buff.rs#L56
 
 As you can see in the bindings, e.g. for x86_64, there are already a lot of other bpf functions so you can just easily add them yourself and possibly contribute this to the aya-rs project. Nevertheless, keep in mind that not all functions are allowed by the Linux kernel for a given eBPF program type, e.g. sock filter.
 
