@@ -6,7 +6,7 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.96"
+anyhow = "1.0.104"
 aya = { version = "0.14.0", default-features = false }
 aya-log = { version = "0.3.0", default-features = false }
 bytes = {version = "1"}
