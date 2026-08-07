@@ -7,20 +7,20 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.96"
-aya = { version = "0.13.1", default-features = false }
-aya-log = { version = "0.2.1", default-features = false }
+aya = { version = "0.14.0", default-features = false }
+aya-log = { version = "0.3.0", default-features = false }
 bytes = {version = "1"}
-clap = { version = "4.5", features = ["derive"] }
+clap = { version = "4.6", features = ["derive"] }
 libc = {version="0.2"}
 net-tc-filter-common = { path = "../net-tc-filter-common", features=["user"] }
 log = {version="0.4"}
-serde = {version="1.0.218", features = ["derive"] }
+serde = {version="1.0.229", features = ["derive"] }
 serde_yaml = {version = "0.9.16"}
-tokio = { version = "1.25", features = ["macros", "rt", "rt-multi-thread", "net", "signal"] }
+tokio = { version = "1.53", features = ["macros", "rt", "rt-multi-thread", "net", "signal"] }
 env_logger = "0.11"
 
 [dev-dependencies]
-rand = {version="0.8.5", features = ["small_rng"]}
+rand = {version="0.10.2"}
 
 [[bin]]
 name = "net-tc-filter-app"
