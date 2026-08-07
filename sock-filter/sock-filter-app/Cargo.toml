@@ -5,23 +5,24 @@ edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+
 [dependencies]
-anyhow = "1.0.68"
-aya = { version = "0.13.1", default-features = false }
-aya-log = { version = "0.2.1", default-features = false }
+anyhow = "1.0.104"
+aya = { version = "0.14.0", default-features = false }
+aya-log = { version = "0.3.0", default-features = false }
 bytes = {version = "1"}
-clap = { version = "4.1.1", features = ["derive"] }
-libc = {version="0.2", features = [ "extra_traits" ] }
+clap = { version = "4.6", features = ["derive"] }
+libc = {version="0.2"}
 sock-filter-common = { path = "../sock-filter-common", features=["user"] }
 log = {version="0.4"}
-serde = {version="1.0.152", features = ["derive"] }
+serde = {version="1.0.229", features = ["derive"] }
 serde_yaml = {version = "0.9.16"}
-tokio = { version = "1.24.1", features = ["macros", "rt", "rt-multi-thread", "net", "signal","sync"] }
-uuid = {version="1.2.2"}
-env_logger = "0.10"
+tokio = { version = "1.53",  features = ["macros", "rt", "rt-multi-thread", "net", "signal","sync"]  }
+uuid = {version="1.24.0"}
+env_logger = "0.11"
 
 [dev-dependencies]
-rand = {version="0.8.5", features = ["small_rng"]}
+rand = {version="0.10.2"}
 
 [[bin]]
 name = "sock-filter-app"
