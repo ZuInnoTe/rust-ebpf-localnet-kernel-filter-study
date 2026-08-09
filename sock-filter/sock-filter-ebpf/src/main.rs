@@ -26,10 +26,9 @@ use sock_filter_common::Netfilter;
 static CONFIGLIST: HashMap<u32, u32> = HashMap::<u32, u32>::with_max_entries(1024, 0);
 
 #[map(name = "ENDPOINTLIST")] // contains the local endpoints that we should monitor for connection attempts
-                              // key: userid
-                              // value: list of tuples (prefix, range)
-static ENDPOINTLIST: HashMap<u32, Netfilter> =
-    HashMap::<u32, Netfilter>::with_max_entries(1024, 0);
+// key: userid
+// value: list of tuples (prefix, range)
+static ENDPOINTLIST: HashMap<u32, Netfilter> = HashMap::<u32, Netfilter>::with_max_entries(1024, 0);
 
 /// This is the "main" function of the eBPF program
 #[socket_filter]
