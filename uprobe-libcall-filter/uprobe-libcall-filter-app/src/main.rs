@@ -2,14 +2,13 @@
 //! This part is the main program that loads the configuration, the eBPF module and communicates the configuration to the eBPF moddule
 
 use aya::{
-    include_bytes_aligned, maps::perf::AsyncPerfEventArray, programs::UProbe, util::online_cpus,
-    Ebpf,
+    Ebpf, include_bytes_aligned, maps::RingBuf, programs::UProbe, programs::uprobe::UProbeScope,
 };
 use aya_log::EbpfLogger;
-use bytes::BytesMut;
 use clap::Parser;
 use log::{info, warn};
-use tokio::{signal, task};
+use std::convert::TryFrom;
+use tokio::signal;
 
 // own modules
 pub mod conf;
@@ -41,11 +40,23 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut bpf = Ebpf::load(include_bytes_aligned!(
         "../../uprobe-libcall-filter-ebpf/target/bpfel-unknown-none/release/uprobe-libcall-filter"
     ))?;
-    if let Err(e) = EbpfLogger::init(&mut bpf) {
-        // This can happen if you remove all log statements from your eBPF program.
-        warn!("failed to initialize eBPF logger: {}", e);
+    match EbpfLogger::init(&mut bpf) {
+        Err(e) => {
+            // This can happen if you remove all log statements from your eBPF program.
+            warn!("failed to initialize eBPF logger: {e}");
+        }
+        Ok(logger) => {
+            let mut logger =
+                tokio::io::unix::AsyncFd::with_interest(logger, tokio::io::Interest::READABLE)?;
+            tokio::task::spawn(async move {
+                loop {
+                    let mut guard = logger.readable_mut().await.unwrap();
+                    guard.get_inner_mut().flush();
+                    guard.clear_ready();
+                }
+            });
+        }
     }
-
     // iterate through configuration and attach uprobe to each application
     for (operation, operation_definition) in config.applications {
         info! {"Configuring operation {}",operation};
@@ -61,88 +72,94 @@ async fn main() -> Result<(), anyhow::Error> {
                 bpf.program_mut("osslreadprobe").unwrap().try_into()?;
             program_ossreadprobe.load()?;
             program_ossreadprobe.attach(
-                Some("SSL_read"),
-                0,
-                &application_definition.openssl_lib,
-                None,
+                "SSL_read",
+                application_definition.openssl_lib.as_str(),
+                UProbeScope::AllProcesses,
             )?;
 
             let program_ossreadprobe_ret: &mut UProbe =
                 bpf.program_mut("osslreadretprobe").unwrap().try_into()?;
             program_ossreadprobe_ret.load()?;
             program_ossreadprobe_ret.attach(
-                Some("SSL_read"),
-                0,
+                "SSL_read",
                 &application_definition.openssl_lib,
-                None,
+                UProbeScope::AllProcesses,
             )?;
             // attach probes for write
             let program_osswriteprobe: &mut UProbe =
                 bpf.program_mut("osslwriteprobe").unwrap().try_into()?;
             program_osswriteprobe.load()?;
             program_osswriteprobe.attach(
-                Some("SSL_write"),
-                0,
+                "SSL_write",
                 &application_definition.openssl_lib,
-                None,
+                UProbeScope::AllProcesses,
             )?;
             let program_osswriteprobe_ret: &mut UProbe =
                 bpf.program_mut("osslwriteretprobe").unwrap().try_into()?;
             program_osswriteprobe_ret.load()?;
             program_osswriteprobe_ret.attach(
-           Some("SSL_write"),
-                0,
+                "SSL_write",
                 &application_definition.openssl_lib,
-                None,
+                UProbeScope::AllProcesses,
             )?;
         }
     }
 
     // Get feedback from eBPF module of calls to SSL_read with unecrypted data
-    let mut ssl_read_perf_array =
-        AsyncPerfEventArray::try_from(bpf.take_map("SSLREADDATA").unwrap())?;
-
-    for cpu_id in online_cpus().map_err(|(_, error)| error)? {
-        let mut buf = ssl_read_perf_array.open(cpu_id, None)?;
-        task::spawn(async move {
-            let mut buffers = (0..10)
-                .map(|_| BytesMut::with_capacity(uprobe_libcall_filter_common::DATA_BUF_CAPACITY))
-                .collect::<Vec<_>>();
-            loop {
-                let events = buf.read_events(&mut buffers).await.unwrap();
-                #[allow(clippy::needless_range_loop)]
-                for i in 0..events.read {
-                    let buf = &mut buffers[i];
-                    info!("Unencrypted SSL_read data: {}", unsafe {
-                        std::str::from_utf8_unchecked(buf)
-                    })
-                }
+    let ssl_read_ringbuf = RingBuf::try_from(bpf.take_map("SSLREADDATABUF").unwrap())?;
+    let mut poll =
+        tokio::io::unix::AsyncFd::with_interest(ssl_read_ringbuf, tokio::io::Interest::READABLE)?;
+    tokio::task::spawn(async move {
+        loop {
+            let mut guard = poll.readable_mut().await.unwrap();
+            let ring_buf = guard.get_inner_mut();
+            while let Some(item) = ring_buf.next() {
+                // get the size of the data to read
+                let data_len = u32::from_le_bytes(
+                    <[u8; 4]>::try_from(item.chunks(4).next().unwrap()).unwrap(),
+                );
+                let all_data_vec = item.to_vec();
+                let all_data = all_data_vec.as_slice();
+                let size_of_length = size_of::<u32>() as u32;
+                // extract the content
+                let content =
+                    &all_data[size_of_length as usize..(data_len + size_of_length) as usize];
+                match std::str::from_utf8(content) {
+                    Ok(utf8_str) => info!("Unencrypted SSL_read data: {}", utf8_str),
+                    Err(err) => warn!("Data is not valid UTF8 data: {}", err),
+                };
             }
-        });
-    }
+            guard.clear_ready();
+        }
+    });
 
     // Get feedback from eBPF module of calls to SSL_write with unecrypted data
-    let mut ssl_write_perf_array =
-        AsyncPerfEventArray::try_from(bpf.take_map("SSLWRITEDATA").unwrap())?;
-
-    for cpu_id in online_cpus().map_err(|(_, error)| error)? {
-        let mut buf = ssl_write_perf_array.open(cpu_id, None)?;
-        task::spawn(async move {
-            let mut buffers = (0..10)
-                .map(|_| BytesMut::with_capacity(uprobe_libcall_filter_common::DATA_BUF_CAPACITY))
-                .collect::<Vec<_>>();
-            loop {
-                let events = buf.read_events(&mut buffers).await.unwrap();
-                #[allow(clippy::needless_range_loop)]
-                for i in 0..events.read {
-                    let buf = &mut buffers[i];
-                    info!("Unencrypted SSL_write data: {}", unsafe {
-                        std::str::from_utf8_unchecked(buf)
-                    })
-                }
+    let ssl_write_ringbuf = RingBuf::try_from(bpf.take_map("SSLWRITEDATABUF").unwrap())?;
+    let mut poll =
+        tokio::io::unix::AsyncFd::with_interest(ssl_write_ringbuf, tokio::io::Interest::READABLE)?;
+    tokio::task::spawn(async move {
+        loop {
+            let mut guard = poll.readable_mut().await.unwrap();
+            let ring_buf = guard.get_inner_mut();
+            while let Some(item) = ring_buf.next() {
+                // get the size of the data to read
+                let data_len = u32::from_le_bytes(
+                    <[u8; 4]>::try_from(item.chunks(4).next().unwrap()).unwrap(),
+                );
+                let all_data_vec = item.to_vec();
+                let all_data = all_data_vec.as_slice();
+                let size_of_length = size_of::<u32>() as u32;
+                // extract the content
+                let content =
+                    &all_data[size_of_length as usize..(data_len + size_of_length) as usize];
+                match std::str::from_utf8(content) {
+                    Ok(utf8_str) => info!("Unencrypted SSL_write data: {}", utf8_str),
+                    Err(err) => warn!("Data is not valid UTF8 data: {}", err),
+                };
             }
-        });
-    }
+            guard.clear_ready();
+        }
+    });
 
     info!("Waiting for Ctrl-C...");
     signal::ctrl_c().await?;

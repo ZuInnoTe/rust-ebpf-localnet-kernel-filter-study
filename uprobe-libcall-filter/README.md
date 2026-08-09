@@ -161,14 +161,14 @@ You will see an output of our urprobes similar to the following:
 You can configure all the OpenSSL libraries that exist in your system. If a configured SSL library does not exist in your system then you will receive an error message. Also often systems have many different OpenSSL libraries installed and if you do not configure all of them or miss the one used by the application you want to get unencrypted data from, you will not see an output. 
 Additionally, if the application does not used a dynamically linked OpenSSL library, but a statically loaded library then you may need to configure the path of the application directly. 
 
-In the following we configure one OpenSSL library located in '/lib64/glibc-hwcaps/x86-64-v3/libssl.so.3.5.1'
+In the following we configure one OpenSSL library located in '/lib64/glibc-hwcaps/x86-64-v3/libssl.so.3.5.3'
 
 
 ```
 applications: 
         filter:
              openssl3.5:
-                openssl_lib: "/lib64/glibc-hwcaps/x86-64-v3/libssl.so.3.5.1"
+                openssl_lib: "/lib64/glibc-hwcaps/x86-64-v3/libssl.so.3.5.3"
                  
 ```
 
@@ -204,6 +204,6 @@ ldd /usr/bin/curl
 We can see in the output also the used SSL library by curl
 ```
 [..]
-libssl.so.3 => /lib64/glibc-hwcaps/x86-64-v3/libssl.so.3.5.1
+libssl.so.3 => /lib64/glibc-hwcaps/x86-64-v3/libssl.so.3.5.3
 [..]
 ```

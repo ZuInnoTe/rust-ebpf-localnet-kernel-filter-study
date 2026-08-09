@@ -6,11 +6,10 @@
 #![no_main]
 
 use aya_ebpf::{
-    bindings::__u32,
     macros::map,
     macros::uprobe,
     macros::uretprobe,
-    maps::{HashMap, PerCpuArray, PerfEventByteArray},
+    maps::{HashMap, RingBuf},
     programs::ProbeContext,
     programs::RetProbeContext,
 };
@@ -20,41 +19,30 @@ use aya_log_ebpf::warn;
 #[allow(non_snake_case)]
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
-#[repr(C)]
-pub struct DataBuf {
-    pub buf: [u8; uprobe_libcall_filter_common::DATA_BUF_CAPACITY],
-}
 
 struct c_ptr(*const core::ffi::c_void);
 unsafe impl Send for c_ptr {}
 unsafe impl Sync for c_ptr {}
 
-
 // Data structures for exchanging SSL_read data with user space
 #[map]
-static SSLREADDATABUF: PerCpuArray<DataBuf> = PerCpuArray::with_max_entries(1, 0);
-
-#[map]
-static SSLREADDATA: PerfEventByteArray = PerfEventByteArray::new(0);
+static SSLREADDATABUF: RingBuf =
+    RingBuf::with_byte_size(uprobe_libcall_filter_common::DATA_BUF_CAPACITY as u32, 0);
 
 #[map] // contains the pointer to the read buffer containing the decrypted data provided by OpenSSL
-       // key is the tgid_pid of the process
-       // value is the pointer to the read buffer
-static SSLREADARGSMAP: HashMap<u64, c_ptr> =
-    HashMap::<u64, c_ptr>::with_max_entries(1024, 0);
+// key is the tgid_pid of the process
+// value is the pointer to the read buffer
+static SSLREADARGSMAP: HashMap<u64, c_ptr> = HashMap::<u64, c_ptr>::with_max_entries(1024, 0);
 
 // Data structures for exchanging SSL_write data with user space
 #[map]
-static SSLWRITEDATABUF: PerCpuArray<DataBuf> = PerCpuArray::with_max_entries(1, 0);
-
-#[map]
-static SSLWRITEDATA: PerfEventByteArray = PerfEventByteArray::new(0);
+static SSLWRITEDATABUF: RingBuf =
+    RingBuf::with_byte_size(uprobe_libcall_filter_common::DATA_BUF_CAPACITY as u32, 0);
 
 #[map] // contains the pointer to the read buffer containing the decrypted data provided by OpenSSL
-       // key is the tgid_pid of the process
-       // value is the pointer to the read buffer
-static SSLWRITEARGSMAP: HashMap<u64, c_ptr> =
-    HashMap::<u64, c_ptr>::with_max_entries(1024, 0);
+// key is the tgid_pid of the process
+// value is the pointer to the read buffer
+static SSLWRITEARGSMAP: HashMap<u64, c_ptr> = HashMap::<u64, c_ptr>::with_max_entries(1024, 0);
 
 /// This uprobe is triggered when a process calls the SSL_read function.
 /// It stores the address of the buffer containing the unencrypted data under the pid/tgid of the calling process
@@ -68,14 +56,12 @@ pub fn osslreadprobe(ctx: ProbeContext) -> u32 {
 
     // get the parameter containing the read buffer, cf. https://docs.openssl.org/3.0/man3/SSL_read/, Note: aya starts from 0 (ie Parameter 2 = arg(1))
     let buffer_ptr: c_ptr = match *&ctx.arg(1) {
-        Some(ptr) =>  c_ptr(ptr),
+        Some(ptr) => c_ptr(ptr),
         None => return 0,
     };
-    unsafe {
-        match SSLREADARGSMAP.insert(&current_pid_tgid, &buffer_ptr, 0) {
-            _ => (),
-        };
-    }
+    match SSLREADARGSMAP.insert(&current_pid_tgid, &buffer_ptr, 0) {
+        _ => (),
+    };
     return 0;
 }
 
@@ -92,34 +78,43 @@ pub fn osslreadretprobe(ctx: RetProbeContext) -> u32 {
 
     // get return value (is the length of data read)
     // get return value (is the length of data read)
-    let ret_value_len: i32 = match ctx.ret() {
-        Some(ret) => ret,
-        None => return 0,
-    };
+    let ret_value_len: i32 = ctx.ret();
     if ret_value_len > 0 {
         // only if there was actually sth. to read.
-        if ret_value_len as usize > uprobe_libcall_filter_common::DATA_BUF_CAPACITY {
+        let size_of_length = size_of::<u32>() as u32;
+        let max_length =
+            uprobe_libcall_filter_common::DATA_BUF_CAPACITY_CONTENT - size_of_length as usize;
+        if ret_value_len as u32 > max_length as u32 {
             warn!(
                 &ctx,
                 "Read Buffer {} is larger than Buffer Capacity {} - data is not processed",
                 ret_value_len,
-                uprobe_libcall_filter_common::DATA_BUF_CAPACITY
+                max_length
             );
         } else {
             // get pointer stored when the read function was called
             unsafe {
                 match SSLREADARGSMAP.get(&current_pid_tgid) {
                     Some(src_buffer_ptr) => {
-                        if let Some(output_buf_ptr) = SSLREADDATABUF.get_ptr_mut(0) {
-                            let output_buf = &mut *output_buf_ptr;
+                        if let Some(mut output_buf) = SSLREADDATABUF.reserve_bytes(
+                            (uprobe_libcall_filter_common::DATA_BUF_CAPACITY_CONTENT) as usize,
+                            0,
+                        ) {
+                            // write in the first part of the buffer the size of the decrypted data
+                            core::ptr::write(
+                                output_buf.as_mut_ptr() as *mut u32,
+                                ret_value_len as u32,
+                            );
+                            // write the decrypted data
                             bpf_probe_read_user(
-                                output_buf.buf.as_mut_ptr() as *mut core::ffi::c_void,
-                                ret_value_len as u32
-                                    & (uprobe_libcall_filter_common::DATA_BUF_CAPACITY - 1) as u32, // needed by eBPF verifier to be able to ensure that not more than necessary is read
-                              src_buffer_ptr.0,
+                                output_buf.as_mut_ptr().add(size_of_length as usize)
+                                    as *mut core::ffi::c_void,
+                                (ret_value_len as u32 + size_of_length) as u32
+                                    & (max_length) as u32, // needed by eBPF verifier to be able to ensure that not more than necessary is read
+                                src_buffer_ptr.0,
                             );
 
-                            SSLREADDATA.output(&ctx, &output_buf.buf[..ret_value_len as usize], 0);
+                            output_buf.submit(0);
                         }
                     }
                     None => (),
@@ -129,10 +124,8 @@ pub fn osslreadretprobe(ctx: RetProbeContext) -> u32 {
     }
 
     // clean up map
-    unsafe {
-        match SSLREADARGSMAP.remove(&current_pid_tgid) {
-            _ => (),
-        }
+    match SSLREADARGSMAP.remove(&current_pid_tgid) {
+        _ => (),
     }
     return 0;
 }
@@ -152,11 +145,9 @@ pub fn osslwriteprobe(ctx: ProbeContext) -> u32 {
         Some(ptr) => c_ptr(ptr),
         None => return 0,
     };
-    unsafe {
-        match SSLWRITEARGSMAP.insert(&current_pid_tgid, &buffer_ptr, 0) {
-            _ => (),
-        };
-    }
+    match SSLWRITEARGSMAP.insert(&current_pid_tgid, &buffer_ptr, 0) {
+        _ => (),
+    };
     return 0;
 }
 
@@ -172,34 +163,46 @@ pub fn osslwriteretprobe(ctx: RetProbeContext) -> u32 {
     let current_pid_tgid = unsafe { bpf_get_current_pid_tgid() };
 
     // get return value (is the length of data read)
-    let ret_value_len: i32 = match ctx.ret() {
-        Some(ret) => ret,
-        None => return 0,
-    };
+    // get return value (is the length of data read)
+    let ret_value_len: i32 = ctx.ret();
     if ret_value_len > 0 {
         // only if there was actually sth. to read.
-
-        if ret_value_len as usize > uprobe_libcall_filter_common::DATA_BUF_CAPACITY {
+        let size_of_length = size_of::<u32>() as u32;
+        let max_length =
+            uprobe_libcall_filter_common::DATA_BUF_CAPACITY_CONTENT - size_of_length as usize;
+        if ret_value_len as u32 > max_length as u32 {
             warn!(
                 &ctx,
-                "Write Buffer is larger than Buffer Capacity - data is not processed"
+                "Write Buffer {} is larger than Buffer Capacity {} - data is not processed",
+                ret_value_len,
+                max_length
             );
         } else {
             // get pointer stored when the read function was called
-
             unsafe {
                 match SSLWRITEARGSMAP.get(&current_pid_tgid) {
                     Some(src_buffer_ptr) => {
-                        if let Some(output_buf_ptr) = SSLWRITEDATABUF.get_ptr_mut(0) {
-                            let output_buf = &mut *output_buf_ptr;
+                        if let Some(mut output_buf) = SSLWRITEDATABUF.reserve_bytes(
+                            uprobe_libcall_filter_common::DATA_BUF_CAPACITY_CONTENT,
+                            0,
+                        ) {
+                            // write in the first part of the buffer the size of the decrypted data
+                            core::ptr::write(
+                                output_buf.as_mut_ptr() as *mut u32,
+                                ret_value_len as u32,
+                            );
+                            // write the decrypted data
                             bpf_probe_read_user(
-                                output_buf.buf.as_mut_ptr() as *mut core::ffi::c_void,
-                                ret_value_len as u32
-                                    & (uprobe_libcall_filter_common::DATA_BUF_CAPACITY - 1) as u32, // needed by eBPF verifier to be able to ensure that not more than necessary is read
+                                output_buf.as_mut_ptr().add(size_of_length as usize)
+                                    as *mut core::ffi::c_void,
+                                (ret_value_len as u32 + size_of_length) as u32
+                                    & (uprobe_libcall_filter_common::DATA_BUF_CAPACITY_CONTENT
+                                        - size_of_length as usize)
+                                        as u32, // needed by eBPF verifier to be able to ensure that not more than necessary is read
                                 src_buffer_ptr.0,
                             );
 
-                            SSLWRITEDATA.output(&ctx, &output_buf.buf[..ret_value_len as usize], 0);
+                            output_buf.submit(0);
                         }
                     }
                     None => (),
@@ -209,10 +212,8 @@ pub fn osslwriteretprobe(ctx: RetProbeContext) -> u32 {
     }
 
     // clean up map
-    unsafe {
-        match SSLWRITEARGSMAP.remove(&current_pid_tgid) {
-            _ => (),
-        }
+    match SSLWRITEARGSMAP.remove(&current_pid_tgid) {
+        _ => (),
     }
     return 0;
 }
