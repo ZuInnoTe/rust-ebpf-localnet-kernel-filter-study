@@ -2,8 +2,9 @@
 //! This part is the main program that loads the configuration, the eBPF module and communicates the configuration to the eBPF moddule
 
 use aya::{include_bytes_aligned, maps::HashMap, programs::SocketFilter, Ebpf};
+use aya_log::EbpfLogger;
 use clap::Parser;
-use log::{error, info};
+use log::{error, info, warn};
 use sock_filter_common;
 use sock_filter_common::ConfigEbpf;
 use sock_filter_common::Netfilter;
@@ -43,6 +44,24 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut bpf = Ebpf::load(include_bytes_aligned!(
         "../../sock-filter-ebpf/target/bpfel-unknown-none/release/sock-filter"
     ))?;
+    // configure logger for ebpf program
+    match EbpfLogger::init(&mut bpf) {
+        Err(e) => {
+            // This can happen if you remove all log statements from your eBPF program.
+            warn!("failed to initialize eBPF logger: {e}");
+        }
+        Ok(logger) => {
+            let mut logger =
+                tokio::io::unix::AsyncFd::with_interest(logger, tokio::io::Interest::READABLE)?;
+            tokio::task::spawn(async move {
+                loop {
+                    let mut guard = logger.readable_mut().await.unwrap();
+                    guard.get_inner_mut().flush();
+                    guard.clear_ready();
+                }
+            });
+        }
+    }
     // iterate through configuration and attach to endpoint
     // add/update hashmap for userid for allowed cidr
     for endpoint in config.endpoints {
