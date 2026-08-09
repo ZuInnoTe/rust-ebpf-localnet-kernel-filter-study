@@ -90,7 +90,10 @@ endpoints:
 
 You can specify also IPv6 ranges, e.g. "::1/128". 
 
-One could also think about further restrictions, e.g. only allow calls at specific times
+Keep in mind that if you need to resolve domain names that you also need to allow the DNS server.
+
+One could also think about further restrictions, e.g. only allow calls at specific times.
+
 
 # Build
 
