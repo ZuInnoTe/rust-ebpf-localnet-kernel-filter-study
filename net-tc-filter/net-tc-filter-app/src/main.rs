@@ -3,10 +3,9 @@
 //! Adaption from: https://github.com/aya-rs/book/blob/main/examples/tc-egress/
 
 use aya::{
-    include_bytes_aligned,
+    Ebpf, include_bytes_aligned,
     maps::HashMap,
-    programs::{tc, SchedClassifier, TcAttachType},
-    Ebpf,
+    programs::{SchedClassifier, TcAttachType, tc},
 };
 use aya_log::EbpfLogger;
 use clap::Parser;

@@ -1,10 +1,9 @@
 //! Module to get user information, such as user id (uid)
 //! Supported Operating Systems: Linux
 
-use std::ffi::{CString};
+use std::ffi::CString;
 use std::mem;
 use std::ptr;
-
 
 #[derive(Debug, PartialEq)]
 /// Error when retrieving user information
