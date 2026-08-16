@@ -45,7 +45,8 @@ jobs:
           rustup default nightly
           rustup toolchain list
           cargo --version
-          cargo install bpf-linker
+          cargo install cargo-binstall --locked
+          cargo binstall bpf-linker
           cd uprobe-libcall-filter
           cd uprobe-libcall-filter-ebpf
           cargo build --target bpfel-unknown-none -Z build-std=core --release
