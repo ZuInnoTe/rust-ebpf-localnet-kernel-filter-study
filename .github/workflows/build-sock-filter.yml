@@ -20,6 +20,9 @@ jobs:
        with:
         path: rust
         key: ${{ runner.os }}-rustup-${{env.RUSTUP_TOOLCHAIN}}
+     - name: Install llvm
+       run: |
+              sudo apt install -y llvm llvm-dev
      - name: Install rust
        if: steps.cache-rust.outputs.cache-hit != 'true'
        run: |
