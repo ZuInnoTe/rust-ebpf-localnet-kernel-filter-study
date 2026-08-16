@@ -20,9 +20,6 @@ jobs:
        with:
         path: rust
         key: ${{ runner.os }}-rustup-${{env.RUSTUP_TOOLCHAIN}}
-     - name: Install llvm
-       run: |
-              sudo apt install -y llvm llvm-dev
      - name: Install rust
        if: steps.cache-rust.outputs.cache-hit != 'true'
        run: |
@@ -46,7 +43,8 @@ jobs:
           rustup default nightly
           rustup toolchain list
           cargo --version
-          cargo install bpf-linker
+          cargo install cargo-binstall --locked
+          cargo binstall bpf-linker
           cd uprobe-libcall-filter
           cd uprobe-libcall-filter-ebpf
           cargo build --target bpfel-unknown-none -Z build-std=core --release
